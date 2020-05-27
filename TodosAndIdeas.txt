@@ -1,0 +1,18 @@
+Change the role of "Args"
+  With multiple different models it will now be awkward to define Hyperparameters in one object with
+  _fixed_ entries. Rather make it a Dictionary.
+  Pros:
+  * Models can, during creation, lookup whether their respective Hyperparameters exist.
+  * Not needed Hyperparameters do not need to be created
+  * Args can thus be adapted more freely
+  * I rely on one less external library
+
+  Cons:
+  * Switching between models is still ugly
+
+Boilerplate code for the Models
+  Currently I have to give a trainable, gpu and pretty print function for every model I create.
+  This is bad design and a macro should handle this. Find a good way to create this macro.
+
+Git
+  Git. Make it happen now.
