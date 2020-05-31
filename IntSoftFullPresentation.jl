@@ -87,10 +87,11 @@ function evaluationCallback(samples, model)
 end
 
 function lossTarget(x, y, model, params, args::Args)
-	ŷ = model(x, y)
+	ŷ = model(x)
 
-	loss = sum(binarycrossentropy.(ŷ, y)) / (args.nOutputLength * args.batchsize)
-	# loss = mae(ŷ, y)
+	# TODO BCE does not like matrix input: flatten output and stuff first
+	# loss = sum(binarycrossentropy.(ŷ, y)) / (args.nOutputLength * args.batchsize)
+	loss = sum(mae.(ŷ, y))
 	return loss #+ args.wPenalty * sum(norm, params)
 end
 # TODO, the weigth decay results in NaN results, if present in the FIRST EPOCH (only if). Why?
@@ -112,7 +113,8 @@ function trainEpoch(model, trainingSamples, evaluationSamples, args::Args)
   opt = ADAM(args.η)
 	# opt = RMSProp(args.η)
   @info("Training...")
-	@epochs args.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = throttle(evalcb, args.throttle))
+	# @epochs args.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = throttle(evalcb, args.throttle))
+	@epochs args.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = () -> @info("Another one bites the dust"))
   return model
 end
 # TODO: custom training function; add to progressbar (`@progress` infront of `for`) for juno etc.
@@ -124,54 +126,54 @@ end
 
 parameterSpecification = Args(
 	nVocab = length(vocabulary),
-	nInputLength   = 100,
-	nOutputLength  = 100,
+	nInputLength   = 10,
+	nOutputLength  = 10,
 	nContextLength = 256,
 
 	η = 1e-3,
 	wPenalty = 0.0,
 	# wPenalty = 1e-3,
 
-	nEpochs = 100,
-	batchsize = 512
+	nEpochs = 1,
+	batchsize = 1
 )
 
-# trainingSamples, evaluationSamples = loadSamples("samples\\backwards_n=6_samples=500000Samples.dat",
-# trainingSamples, evaluationSamples = loadSamples("samples\\backwards_n=4_samples=1000Samples.dat",
-trainingSamples, evaluationSamples = loadSamples("samples\\forward_n=6_samples=10000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
+trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
 	evaluationFraction = 0.025,
-	maxInputLength     = 10, #parameterSpecification.nInputLength,
-	maxOutputLength    = 10, #parameterSpecification.nOutputLength,
+	maxInputLength     = parameterSpecification.nInputLength,
+	maxOutputLength    = parameterSpecification.nOutputLength,
 	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
-	flattenTo          = (parameterSpecification.nInputLength, parameterSpecification.nOutputLength),
-	# expandToMaxLength  = (false, true),
+	# flattenTo          = (parameterSpecification.nInputLength, parameterSpecification.nOutputLength),
+	expandToMaxLength  = (false, true),
 	type               = Float32
-) |> tpu
-# TODO: Adapt loader for forward data
+) #|> tpu
 
-model = simpleEncoderDecoder(parameterSpecification) |> tpu
-# model = recursiveAttentionModel(parameterSpecification) |> tpu
+# model = simpleEncoderDecoder(parameterSpecification) |> tpu
+model = recursiveAttentionModel(parameterSpecification) #|> tpu
 # TODO make gpu's a possibility again
 
 trainEpoch(model, trainingSamples, evaluationSamples, parameterSpecification)
 
 # This code finds the NaN gradients
-# for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 512, shuffle = false)
-#   tc = 0; ps = params(model)
-#   gs = gradient(ps) do
-#     tl = lossTarget(x, y, model, ps, parameterSpecification)
-#     tc = tl
-#     return tl
-#   end # gradient evaluation
-#   println("-----------------------------")
-#   println(any(x -> x < 0 || x > 1 || isnan(x) || isinf(x), modelForward(x, model)))
-#   println(tc)
-#   println(gs[model[1].W][1:10])
-#   println(model[1].W[1:10])
-#   opt = ADAM(0.001)
-#   Flux.update!(opt, ps, gs)
-#   # println(get!(opt.state, model[1].W[1], (0.0f0, 0.0f0, opt.beta)))
-#   if isnan(gs[model[1].W][1])
-#     break
-#   end
-# end
+for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 10, shuffle = false)
+  tc = 0; ps = params(model)
+  gs = gradient(ps) do
+    tl = lossTarget(x, y, model, ps, parameterSpecification)
+    tc = tl
+    return tl
+		# return sum(norm.(model(x)))
+  end # gradient evaluation
+  println("-----------------------------")
+  # println(any(x -> x < 0 || x > 1 || isnan(x) || isinf(x), model(x)))
+  println(tc)
+  # println(gs[model[1].W][1:10])
+  # println(model[1].W[1:10])
+  opt = ADAM(0.001)
+  Flux.update!(opt, ps, gs)
+  # println(get!(opt.state, model[1].W[1], (0.0f0, 0.0f0, opt.beta)))
+  # if isnan(gs[model[1].W][1])
+    # break
+  # end
+end

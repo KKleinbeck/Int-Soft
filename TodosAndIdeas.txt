@@ -14,5 +14,7 @@ Boilerplate code for the Models
   Currently I have to give a trainable, gpu and pretty print function for every model I create.
   This is bad design and a macro should handle this. Find a good way to create this macro.
 
-Git
-  Git. Make it happen now.
+Evaluation Callback
+  kldivergence and binarycrossentropy can probably used for all model types; accuracy and precision,
+  however, needs to be redefined for each model architecture. Since we only differentiate
+  between flattened and unflattened data, this should be easily generalised.

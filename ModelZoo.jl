@@ -59,35 +59,36 @@ Flux.trainable(model::recursiveAttentionCell) =
 # end
 
 function _attention(QKV) # Query, Kev Value
-	softmax(QKV * transpose(QKV) / size(QKV, 2), dims=2) * QKV
+	# Softmax along first dimension, so that multiplaction happens with a L¹-normalized vector
+	QKV * softmax(transpose(QKV) * QKV / size(QKV, 1), dims=1)
 	# Still needs to be tested, whether this is faster then an implementation using CUBLAS.syrk.('U', 'N', α, x)
 	# Probably another way is to use `mul(Y, QVK, transpose(QVK))` with a preallocated Y
 end
 
 function _attention(QK, V)
-	softmax(QK * transpose(QK) / size(QK, 2), dims=2) * V
+	QK * softmax(transpose(QK) * V / size(QK, 1), dims=1)
 end
 
 # forward pass
 function (model::recursiveAttentionCell)(x)
 	for i in 1:model.nEncodingIterations
-		x .= x .+ _attention.(x)
-   	x = mapslices.(v -> v ./ norm(v), x, dims = 1) # Implement a proper layer norm function (-> 0 mean, variance 1)
-		x .= x .+ model.encoderFeedForward.(x)
-   	x = mapslices.(v -> v ./ norm(v), x, dims = 1)
+		x = x .+ _attention.(x)
+   	# x = mapslices.(v -> v ./ norm(v), x, dims = 1) # Implement a proper layer norm function (-> 0 mean, variance 1)
+		x = x .+ model.encoderFeedForward.(x)
+   	# x = mapslices.(v -> v ./ norm(v), x, dims = 1)
 	end
 
 	# put the initialization into custom routine
-	ŷ = [convert(typeof(x[1]), zeros(model.vocabSize, model.outputSize)) for _ in 1:length(x)]
-	ŷ = [mapslices(v -> (v[1] = one(typeof(v[1])); v), y, dims = 1) for y in ŷ] # initialize with the `<SOS>` token
+	ŷ = [repeat(one(typeof(x[1][1])) * Flux.onehot("<SOS>", vocabulary), outer=(1, model.outputSize) )
+		for _ in 1:length(x)]
 
 	for i in 1:model.nDecodingIterations
-		ŷ .= ŷ .+ _attention.(ŷ)
-   	ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
-		ŷ .= ŷ .+ _attention.(x, ŷ)
-   	ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
-		ŷ .= ŷ .+ model.decoderFeedForward.(ŷ)
-   	ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
+		ŷ = ŷ .+ _attention.(ŷ)
+   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
+		ŷ = ŷ .+ _attention.(x, ŷ)
+   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
+		ŷ = ŷ .+ model.decoderFeedForward.(ŷ)
+   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
 	end
 	return ŷ
 end
