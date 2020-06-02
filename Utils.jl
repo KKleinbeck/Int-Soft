@@ -6,13 +6,7 @@ using Parameters: @with_kw
 using Flux: crossentropy
 using CuArrays: @cufunc
 
-@with_kw mutable struct Args
-	# Model Hyperparameters
-	nVocab::Int         = 0       # size of input layer, will be assigned as length(alphabet)
-	nInputLength::Int   = 10      # length of the input sequence
-	nOutputLength::Int  = 10
-	nContextLength::Int = 128     # size of the context vector
-
+@with_kw mutable struct trainingParameters
 	# Optimizer and loss function Hyperparameters
 	η::Float32        = 1e-3    # learning rate
 	wPenalty::Float32 = 1e-3

@@ -60,14 +60,14 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 	data, labels   = filterExpressions(data, labels; dissallowedTokens = dissallowedTokens,
 		maxInputLength = maxInputLength, maxOutputLength = maxOutputLength)
 
+
+	nEvaluationSamples = floor(Int, length(data) * evaluationFraction)
 	@info("Reduced to $(length(data)) samples,\n" *
-		"\t\t$(floor(Int, length(data)*(1 - evaluationFraction))) are used for training,\n" *
+		"\t\t$(length(data) - nEvaluationSamples) are used for training,\n" *
 		"\t\t$(floor(Int, length(data)*(evaluationFraction) + 1)) are used for evaluation.\n" *
 		"\tEncoding...")
 	data   = encode(data)   * one(type)
 	labels = encode(labels) * one(type)
-
-	nEvaluationSamples = floor(Int, length(data) * evaluationFraction)
 
 	if !isnothing(flattenTo)
 		@info("Flattening...")
@@ -84,10 +84,10 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 		@info("Expanding to maximum length...")
 		@assert isa(expandToMaxLength, Tuple)
 
-		if(expandToMaxLength[1])
+		if expandToMaxLength[1]
 			data = expandTo(data, maxInputLength)
 		end
-		if(expandToMaxLength[2])
+		if expandToMaxLength[2]
 			labels = expandTo(data, maxOutputLength)
 		end
 	end

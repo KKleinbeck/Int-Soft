@@ -20,7 +20,7 @@ function simpleEncoderDecoder(args)
 	encoderDecoder = Chain(
 		Dense(args.nInputLength*args.nVocab, args.nContextLength, σ),
 		Dense(args.nContextLength, args.nOutputLength*args.nVocab),
-		softmax
+		softmax # TODO: in practice, each _token_ should be individually softmaxed, not the entire _expression_
 	)
 
   return simpleEncoderDecoderCell(encoderDecoder, args.nVocab,

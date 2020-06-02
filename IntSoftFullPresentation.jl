@@ -86,17 +86,30 @@ function evaluationCallback(samples, model)
 	# TODO store results
 end
 
-function lossTarget(x, y, model, params, args::Args)
+# TODO: overload for the models
+function lossTarget(x, y, model, params, args::trainingParameters)
+	@error("Fix me first")
 	ŷ = model(x)
 
-	# TODO BCE does not like matrix input: flatten output and stuff first
-	# loss = sum(binarycrossentropy.(ŷ, y)) / (args.nOutputLength * args.batchsize)
-	loss = sum(mae.(ŷ, y))
+	loss = sum(binarycrossentropy.(ŷ, y)) / (args.nOutputLength * args.batchsize)
+	# loss = sum(mae.(ŷ, y))
+	return loss #+ args.wPenalty * sum(norm, params)
+end
+
+# Array input version
+function lossTargetA(x, y, model, params, args::trainingParameters)
+	ŷ = model(x)
+
+	loss = 0
+	for (ŷi, yi) in zip(ŷ, y)
+		loss += sum(binarycrossentropy.(ŷi, yi)) / (args.nOutputLength * length(vocabulary) * args.batchsize)
+	end
+	# loss = sum(mae.(ŷ, y)) / (args.nOutputLength * args.batchsize)
 	return loss #+ args.wPenalty * sum(norm, params)
 end
 # TODO, the weigth decay results in NaN results, if present in the FIRST EPOCH (only if). Why?
 
-function trainEpoch(model, trainingSamples, evaluationSamples, args::Args)
+function trainEpoch(model, trainingSamples, evaluationSamples, args::trainingParameters)
 	# align each sample along first dimension and create batches.
 	@info("Preparing Data, Optimizer and callbacks")
 	trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
@@ -124,15 +137,12 @@ end
 # --------------------------------------------------------------------------------------------------
 # Main loop
 
-parameterSpecification = Args(
-	nVocab = length(vocabulary),
-	nInputLength   = 10,
-	nOutputLength  = 10,
-	nContextLength = 256,
+maxInputLength  = 10
+maxOutputLength = 10
 
+trainingParameters = trainingParameters(
 	η = 1e-3,
-	wPenalty = 0.0,
-	# wPenalty = 1e-3,
+	wPenalty = 0.0, # wPenalty = 1e-3,
 
 	nEpochs = 1,
 	batchsize = 1
@@ -142,10 +152,10 @@ parameterSpecification = Args(
 # trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
 trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
 	evaluationFraction = 0.025,
-	maxInputLength     = parameterSpecification.nInputLength,
-	maxOutputLength    = parameterSpecification.nOutputLength,
+	maxInputLength     = maxInputLength,
+	maxOutputLength    = maxOutputLength,
 	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
-	# flattenTo          = (parameterSpecification.nInputLength, parameterSpecification.nOutputLength),
+	# flattenTo          = (maxInputLength, maxOutputLength),
 	expandToMaxLength  = (false, true),
 	type               = Float32
 ) #|> tpu
@@ -160,7 +170,7 @@ trainEpoch(model, trainingSamples, evaluationSamples, parameterSpecification)
 for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 10, shuffle = false)
   tc = 0; ps = params(model)
   gs = gradient(ps) do
-    tl = lossTarget(x, y, model, ps, parameterSpecification)
+    tl = lossTargetA(x, y, model, ps, parameterSpecification)
     tc = tl
     return tl
 		# return sum(norm.(model(x)))
@@ -170,7 +180,7 @@ for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batch
   println(tc)
   # println(gs[model[1].W][1:10])
   # println(model[1].W[1:10])
-  opt = ADAM(0.001)
+  opt = ADAM(0.00001)
   Flux.update!(opt, ps, gs)
   # println(get!(opt.state, model[1].W[1], (0.0f0, 0.0f0, opt.beta)))
   # if isnan(gs[model[1].W][1])

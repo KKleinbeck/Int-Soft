@@ -1,5 +1,5 @@
 include("ModelZoo/SimpleModel.jl")
-
+# include("ModelZoo/RecrusiveAttention.jl")
 
 # --------------------------------------------------------------------------------------------------
 # Recursive Attention Model:
@@ -9,10 +9,16 @@ include("ModelZoo/SimpleModel.jl")
 # Idea: Implent Attention like in the Google paper. However use only one Matrix for the
 # attention and one for the feed worward layer and reuse them in multiple times!
 
-mutable struct recursiveAttentionCell{A, B}
+mutable struct recursiveAttentionCell{A, B, C, D, E, F}
 	# Prediction layers
- 	encoderFeedForward::A
- 	decoderFeedForward::B
+ 	encoderLinearAttentionUnit::A
+	encoderTokenFeedForward::B
+
+	estimator::C
+
+	decoderLinearAttentionUnit::D
+	decoderExpressionFeedForward::E
+	decoderPredictor::F
 
 	# Iteration Information
 	nEncodingIterations::Int
@@ -22,33 +28,71 @@ mutable struct recursiveAttentionCell{A, B}
 
 	# Metadata
 	vocabSize::Int
-  outputSize::Int # this can be changed to be free.. But this needs an estimator
+  inputSize::Int  # Input size for the _estimator_; needed for the embedding
+  outputSize::Int # this can be changed to be free.. But this then needs to be known beforehand
+end
+# TODO flag whether estimator is trainable
+
+"""
+	recursiveAttentionModel(args, estimatorTopology; ...)
+
+	Creates the model with a fresh estimator with the given topology.
+	Notation: `estimatorTopology = [512]`: Entire sequence gets reduced
+	to a 512 sized context vector, which predicts entire output sequence.
+"""
+function recursiveAttentionModel(vocabSize::Int, inputSize::Int, outputSize::Int,
+		estimatorTopology::Array{Int, 1};
+		nEncoderIterations = 6, nDecoderIterations = 6,
+		encoderInterFFDimension = 128, decoderInterFFDimension = 512)
+	@info("Creating Estimator\n")
+	estimatorLayers = [Dense(vocabSize * inputSize, estimatorTopology[1])]
+	for i in 1:length(estimatorTopology) - 1
+		push!(estimatorLayers, Dense(estimatorTopology[i], estimatorTopology[i+1]) )
+	end
+	push!(estimatorLayers, Dense(estimatorTopology[end], vocabSize * outputSize))
+
+	estimator = Chain(estimatorLayers...)
+
+	return recursiveAttentionModel(vocabSize::Int, inputSize::Int, outputSize::Int;
+		nEncoderIterations = nEncoderIterations, nDecoderIterations = nDecoderIterations,
+		encoderInterFFDimension = encoderInterFFDimension, decoderInterFFDimension = decoderInterFFDimension,
+		estimator = estimator)
 end
 
-function recursiveAttentionModel(args; nEncoderIterations = 6, nDecoderIterations = 6,
-		encoderInterFFDimension = 512, decoderInterFFDimension = 512)
+function recursiveAttentionModel(vocabSize, inputSize, outputSize;
+		nEncoderIterations = 6, nDecoderIterations = 6,
+		encoderInterFFDimension = 128, decoderInterFFDimension = 512, estimator = nothing)
 	@info("Creating a recursive attention model")
 	@info("- Provide unflattened samples")
 
-	encoderFeedForward = Chain(
-		Dense(args.nVocab, encoderInterFFDimension, relu),
-		Dense(encoderInterFFDimension, args.nVocab)
+	encoderLinearAttentionUnit = Dense(vocabSize, vocabSize)
+
+	encoderTokenFeedForward = Chain(
+		Dense(vocabSize, encoderInterFFDimension, relu),
+		Dense(encoderInterFFDimension, vocabSize)
 	)
 
-	decoderFeedForward = Chain(
-		Dense(args.nVocab, decoderInterFFDimension, relu),
-		Dense(decoderInterFFDimension, args.nVocab)
+	decoderLinearAttentionUnit = Dense(vocabSize, vocabSize)
+
+	decoderExpressionFeedForward = Chain(
+		Dense(vocabSize * outputSize, decoderInterFFDimension, relu),
+		Dense(decoderInterFFDimension, vocabSize * outputSize)
 	)
 
-  return recursiveAttentionCell(encoderFeedForward, decoderFeedForward,
+	decoderPredictor = Dense(vocabSize * outputSize, vocabSize * outputSize)
+
+  return recursiveAttentionCell(encoderLinearAttentionUnit, encoderTokenFeedForward, estimator,
+		decoderLinearAttentionUnit, decoderExpressionFeedForward, decoderPredictor,
 		nEncoderIterations, encoderInterFFDimension, nDecoderIterations, decoderInterFFDimension,
-		args.nVocab, args.nOutputLength
+		vocabSize, inputSize, outputSize
 	)
 end
 
 # parameters
 Flux.trainable(model::recursiveAttentionCell) =
-	(model.encoderFeedForward, model.decoderFeedForward)
+	(model.encoderLinearAttentionUnit, model.encoderFeedForward,
+	 model.decoderLinearAttentionUnit, model.decoderFeedForward,
+	 model.decoderPredictor, model.estimator)
 
 # function gpu(model::recursiveAttentionCell)
 # 	return recursiveAttentionCell(
@@ -58,48 +102,73 @@ Flux.trainable(model::recursiveAttentionCell) =
 # 	)
 # end
 
-function _attention(QKV) # Query, Kev Value
+function _attention(Q, KV) # Query, Kev Value
 	# Softmax along first dimension, so that multiplaction happens with a L¹-normalized vector
-	QKV * softmax(transpose(QKV) * QKV / size(QKV, 1), dims=1)
+	KV * softmax(transpose(Q) * KV / size(KV, 2), dims=1)
 	# Still needs to be tested, whether this is faster then an implementation using CUBLAS.syrk.('U', 'N', α, x)
 	# Probably another way is to use `mul(Y, QVK, transpose(QVK))` with a preallocated Y
 end
 
-function _attention(QK, V)
-	QK * softmax(transpose(QK) * V / size(QK, 1), dims=1)
+function _attention(Q, K, V)
+	V * softmax(transpose(Q) * K / size(K, 2), dims=1)
+end
+
+function _encode(model::recursiveAttentionCell, x)
+	for i in 1:model.nEncodingIterations
+		x = x .+ _attention.(model.encoderLinearAttentionUnit.(x), x)
+		x = softmax.(x, dims = 1)
+   	# x = mapslices.(v -> v ./ norm(v), x, dims = 1) # Implement a proper layer norm function (-> 0 mean, variance 1)
+		x = x .+ model.encoderTokenFeedForward.(x)
+		x = softmax.(x, dims = 1) # x = mapslices.(v -> v ./ norm(v), x, dims = 1)
+	end
+	return x
+end
+
+function _estimate(model, x)
+	x = [
+		vcat(Flux.rpad(Flux.unstack(xi, 2), model.inputSize, Flux.onehot("<EOS>", vocabulary))...)
+		for xi in x
+	] # TODO: this is quite similar to `flattenExpressions`; maybe refactor code
+
+	return model.estimator.(x)
+end
+
+function _decode(model::recursiveAttentionCell, context, ŷ)
+	for i in 1:model.nDecodingIterations
+		ŷ = Flux.batch.(Flux.chunk.(ŷ, model.outputSize))	# == (batchsize, vocabSize, outputSize)
+		ŷ = ŷ .+ _attention.(model.decoderLinearAttentionUnit.(context), ŷ, context)
+		ŷ = softmax.(ŷ, dims = 1) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
+
+		ŷ = [
+			vcat(Flux.rpad(Flux.unstack(ŷi, 2), model.inputSize, Flux.onehot("<EOS>", vocabulary))...)
+			for ŷi in ŷ
+		] # == (batchsize, vocabSize * outputSize)
+		ŷ = ŷ .+ model.decoderExpressionFeedForward.(ŷ)
+		# ŷ = softmax.(ŷ, dims = 1) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
+	end
+
+	return softmax.(model.decoderPredictor.(ŷ))
 end
 
 # forward pass
 function (model::recursiveAttentionCell)(x)
-	for i in 1:model.nEncodingIterations
-		x = x .+ _attention.(x)
-   	# x = mapslices.(v -> v ./ norm(v), x, dims = 1) # Implement a proper layer norm function (-> 0 mean, variance 1)
-		x = x .+ model.encoderFeedForward.(x)
-   	# x = mapslices.(v -> v ./ norm(v), x, dims = 1)
-	end
+	context = _encode(model, x)
 
-	# put the initialization into custom routine
-	ŷ = [repeat(one(typeof(x[1][1])) * Flux.onehot("<SOS>", vocabulary), outer=(1, model.outputSize) )
-		for _ in 1:length(x)]
+	ŷ = _estimate(model, x)
 
-	for i in 1:model.nDecodingIterations
-		ŷ = ŷ .+ _attention.(ŷ)
-   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
-		ŷ = ŷ .+ _attention.(x, ŷ)
-   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
-		ŷ = ŷ .+ model.decoderFeedForward.(ŷ)
-   	# ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
-	end
-	return ŷ
+	return _decode(model, context, ŷ)
 end
 
 # pretty printing
 function Base.show(io::IO, model::recursiveAttentionCell)
-	print(io, "recursiveAttentionModel(", model.nEncodingIterations, "x(")
-	print(io, model.vocabSize, ", ", model.encoderInterFFDimension, ", ", model.vocabSize, ") - ")
-	print(io, model.nDecodingIterations, "x(")
-	print(io, model.vocabSize, ", ", model.decoderInterFFDimension, ", ", model.vocabSize, ")")
+	print(io, "recursiveAttentionModel(", model.nEncodingIterations, "x Encoder Layer, ")
+	print(io, model.nDecodingIterations, "x Decoder Layer, ")
+	print(io, "estimator = ", model.estimator, "; ")
+	print(io, "(", model.vocabSize, ", ", model.inputSize, ", ", model.outputSize, ") )")
 end
+
+
+
 
 
 # --------------------------------------------------------------------------------------------------
