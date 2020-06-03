@@ -25,8 +25,8 @@ mutable struct recursiveAttentionCell{A, B, C, D, E, F}
 
 	# Metadata
 	vocabSize::Int
-  inputSize::Int  # Input size for the _estimator_; needed for the embedding
-  outputSize::Int # this can be changed to be free.. But this then needs to be known beforehand
+  inputLength::Int  # Input size for the _estimator_; needed for the embedding
+  outputLength::Int # this can be changed to be free.. But this then needs to be known beforehand
 end
 # TODO flag whether estimator is trainable
 
@@ -37,26 +37,26 @@ end
 	Notation: `estimatorTopology = [512]`: Entire sequence gets reduced
 	to a 512 sized context vector, which predicts entire output sequence.
 """
-function recursiveAttentionModel(vocabSize::Int, inputSize::Int, outputSize::Int,
+function recursiveAttentionModel(vocabSize::Int, inputLength::Int, outputLength::Int,
 		estimatorTopology::Array{Int, 1};
 		nEncoderIterations = 6, nDecoderIterations = 6,
 		encoderInterFFDimension = 128, decoderInterFFDimension = 512)
 	@info("Creating Estimator\n")
-	estimatorLayers = [Dense(vocabSize * inputSize, estimatorTopology[1])]
+	estimatorLayers = [Dense(vocabSize * inputLength, estimatorTopology[1])]
 	for i in 1:length(estimatorTopology) - 1
 		push!(estimatorLayers, Dense(estimatorTopology[i], estimatorTopology[i+1]) )
 	end
-	push!(estimatorLayers, Dense(estimatorTopology[end], vocabSize * outputSize))
+	push!(estimatorLayers, Dense(estimatorTopology[end], vocabSize * outputLength))
 
 	estimator = Chain(estimatorLayers...)
 
-	return recursiveAttentionModel(vocabSize, inputSize, outputSize;
+	return recursiveAttentionModel(vocabSize, inputLength, outputLength;
 		nEncoderIterations = nEncoderIterations, nDecoderIterations = nDecoderIterations,
 		encoderInterFFDimension = encoderInterFFDimension, decoderInterFFDimension = decoderInterFFDimension,
 		estimator = estimator)
 end
 
-function recursiveAttentionModel(vocabSize::Int, inputSize::Int, outputSize::Int;
+function recursiveAttentionModel(vocabSize::Int, inputLength::Int, outputLength::Int;
 		nEncoderIterations = 6, nDecoderIterations = 6,
 		encoderInterFFDimension = 128, decoderInterFFDimension = 512, estimator = nothing)
 	@assert !isnothing(estimator)
@@ -73,16 +73,16 @@ function recursiveAttentionModel(vocabSize::Int, inputSize::Int, outputSize::Int
 	decoderLinearAttentionUnit = Dense(vocabSize, vocabSize)
 
 	decoderExpressionFeedForward = Chain(
-		Dense(vocabSize * outputSize, decoderInterFFDimension, relu),
-		Dense(decoderInterFFDimension, vocabSize * outputSize)
+		Dense(vocabSize * outputLength, decoderInterFFDimension, relu),
+		Dense(decoderInterFFDimension, vocabSize * outputLength)
 	)
 
-	decoderPredictor = Dense(vocabSize * outputSize, vocabSize * outputSize)
+	decoderPredictor = Dense(vocabSize * outputLength, vocabSize * outputLength)
 
   return recursiveAttentionCell(encoderLinearAttentionUnit, encoderTokenFeedForward, estimator,
 		decoderLinearAttentionUnit, decoderExpressionFeedForward, decoderPredictor,
 		nEncoderIterations, encoderInterFFDimension, nDecoderIterations, decoderInterFFDimension,
-		vocabSize, inputSize, outputSize
+		vocabSize, inputLength, outputLength
 	)
 end
 
@@ -96,7 +96,7 @@ Flux.trainable(model::recursiveAttentionCell) =
 # 	return recursiveAttentionCell(
 # 		Flux.gpu(model.encoderFeedForward), Flux.gpu(model.decoderFeedForward),
 # 		model.encoderIterations, model.decoderIterations, model.vocabSize,
-# 		model.inputSize, model.outputSize
+# 		model.inputLength, model.outputLength
 # 	)
 # end
 
@@ -123,26 +123,26 @@ function _encode(model::recursiveAttentionCell, x)
 end
 
 function _estimate(model, x)
-	x = DataPreparation.flatten(x, model.inputSize)
+	x = DataPreparation.flatten(x, model.inputLength)
 
 	return model.estimator(x)
 end
 
 function _decode(model::recursiveAttentionCell, context, ŷ)
-	ŷ = unflatten(ŷ, model.outputSize)	# == (batchsize, vocabSize, outputSize)
+	ŷ = unflatten(ŷ, model.outputLength)	# == (batchsize, vocabSize, outputLength)
 
 	for i in 1:model.nDecodingIterations
 		ŷ = ŷ .+ _attention(model.decoderLinearAttentionUnit(context), ŷ, context)
 		ŷ = softmax(ŷ) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
 
-		ŷ = DataPreparation.flatten(ŷ) # == (batchsize, vocabSize * outputSize)
+		ŷ = DataPreparation.flatten(ŷ) # == (batchsize, vocabSize * outputLength)
 		ŷ = ŷ + model.decoderExpressionFeedForward(ŷ)
-		ŷ = unflatten(ŷ, model.outputSize)	# == (batchsize, vocabSize, outputSize)
+		ŷ = unflatten(ŷ, model.outputLength)	# == (batchsize, vocabSize, outputLength)
 		ŷ = softmax(ŷ) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
 	end
 
 	ŷ = model.decoderPredictor(DataPreparation.flatten(ŷ))
-	return softmax(unflatten(ŷ, model.outputSize))
+	return softmax(unflatten(ŷ, model.outputLength))
 end
 
 # forward pass
@@ -159,5 +159,5 @@ function Base.show(io::IO, model::recursiveAttentionCell)
 	print(io, "recursiveAttentionModel(", model.nEncodingIterations, "x Encoder Layer, ")
 	print(io, model.nDecodingIterations, "x Decoder Layer, ")
 	print(io, "estimator = ", model.estimator, "; ")
-	print(io, "(", model.vocabSize, ", ", model.inputSize, ", ", model.outputSize, ") )")
+	print(io, "(", model.vocabSize, ", ", model.inputLength, ", ", model.outputLength, ") )")
 end

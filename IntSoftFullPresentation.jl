@@ -53,40 +53,39 @@ end
 	unflattened training samples (batches are Arrays of Arrays).
 """
 function lossTarget(x, y, model::Union{simpleEncoderDecoderCell}, params, tP::TrainingParameters)
-	return _lossTarget(x, y, model, params, tp) / tp.batchsize
+	return _lossTarget(x, y, model, params, tP) / tP.batchsize
 end
 function lossTarget(xs, ys, model::Union{recursiveAttentionCell}, params, tP::TrainingParameters)
-	return sum([_lossTarget(x, y, model, params, tp) for (x, y) in zip(xs, ys)]) / tp.batchsize
+	return sum([_lossTarget(x, y, model, params, tP) for (x, y) in zip(xs, ys)]) / tP.batchsize
 end
 
 function _lossTarget(x, y, model, params, tP::TrainingParameters)
 	ŷ = model(x)
 
-	loss = sum(binarycrossentropy.(ŷ, y)) / (tP.nOutputLength)
+	loss = sum(binarycrossentropy.(ŷ, y)) / (length(y))
 	# loss = sum(mae.(ŷ, y))
-	return loss #+ args.wPenalty * sum(norm, params)
+	return loss #+ yP.wPenalty * sum(norm, params)
 end
 # TODO, the weigth decay results in NaN results, if present in the FIRST EPOCH (only if). Why?
 
-function trainEpoch(model, trainingSamples, evaluationSamples, args::TrainingParameters)
+function trainEpoch(model, trainingSamples, evaluationSamples, tP::TrainingParameters)
 	# align each sample along first dimension and create batches.
 	@info("Preparing Data, Optimizer and callbacks")
 	trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
-		batchsize = args.batchsize, shuffle = args.shuffle
+		batchsize = tP.batchsize, shuffle = tP.shuffle
 	)
 
   # Initialize Hyperparameters
 	hyperParams = params(model)
 
-  loss(x, y) = lossTarget(x, y, model, hyperParams, args)
+  loss(x, y) = lossTarget(x, y, model, hyperParams, tP)
 
 	evalcb = () -> evaluationCallback(evaluationSamples, model)
 
-  opt = ADAM(args.η)
+  opt = ADAM(tP.η)
 	# opt = RMSProp(args.η)
   @info("Training...")
-	# @epochs args.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = throttle(evalcb, args.throttle))
-	@epochs args.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = () -> @info("Another one bites the dust"))
+	@epochs tP.nEpochs Flux.train!(loss, hyperParams, trainingSamples, opt, cb = throttle(evalcb, tP.throttle))
   return model
 end
 # TODO: custom training function; add to progressbar (`@progress` infront of `for`) for juno etc.
@@ -94,10 +93,33 @@ end
 
 
 # --------------------------------------------------------------------------------------------------
-# Main loop
+# Data and Model Loading
 
 maxInputLength  = 10
 maxOutputLength = 10
+
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
+trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
+	evaluationFraction = 0.025,
+	maxInputLength     = maxInputLength,
+	maxOutputLength    = maxOutputLength,
+	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
+	flattenTo          = (maxInputLength, maxOutputLength),
+	# expandToMaxLength  = (false, true),
+	type               = Float32
+) #|> tpu
+
+model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) #|> tpu
+model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
+	nEncoderIterations = 1, nDecoderIterations = 1,
+	encoderInterFFDimension = 128, decoderInterFFDimension = 512
+) #|> tpu
+# TODO make gpu's a possibility again
+
+
+# --------------------------------------------------------------------------------------------------
+# Training
 
 trainingParameters = TrainingParameters(
 	η = 1e-3,
@@ -107,26 +129,7 @@ trainingParameters = TrainingParameters(
 	batchsize = 1
 )
 
-# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
-# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
-trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
-	evaluationFraction = 0.025,
-	maxInputLength     = maxInputLength,
-	maxOutputLength    = maxOutputLength,
-	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
-	# flattenTo          = (maxInputLength, maxOutputLength),
-	expandToMaxLength  = (false, true),
-	type               = Float32
-) #|> tpu
-
-# model = simpleEncoderDecoder(parameterSpecification) |> tpu
-model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
-	nEncoderIterations = 1, nDecoderIterations = 1,
-	encoderInterFFDimension = 128, decoderInterFFDimension = 512
-) #|> tpu
-# TODO make gpu's a possibility again
-
-trainEpoch(model, trainingSamples, evaluationSamples, parameterSpecification)
+trainEpoch(model, trainingSamples, evaluationSamples, trainingParameters)
 
 # This code finds the NaN gradients
 for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 10, shuffle = false)

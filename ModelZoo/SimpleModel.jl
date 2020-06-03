@@ -8,23 +8,23 @@ mutable struct simpleEncoderDecoderCell{A, W, X, Y, Z}
  	encoderDecoderChain::A
 	# Metadata
 	vocabSize::W
-	inputSize::X
+	inputLength::X
   contextSize::Y
-  outputSize::Z
+  outputLength::Z
 end
 
-function simpleEncoderDecoder(args)
+function simpleEncoderDecoder(vocabSize, inputLength, outputLength; contextSize = 512)
 	@info("Creating a simple encoder decoder model")
 	@info("- Provide flattened samples")
 
 	encoderDecoder = Chain(
-		Dense(args.nInputLength*args.nVocab, args.nContextLength, σ),
-		Dense(args.nContextLength, args.nOutputLength*args.nVocab),
+		Dense(inputLength * vocabSize, contextSize, σ),
+		Dense(contextSize, outputLength * vocabSize),
 		softmax # TODO: in practice, each _token_ should be individually softmaxed, not the entire _expression_
 	)
 
-  return simpleEncoderDecoderCell(encoderDecoder, args.nVocab,
-		args.nInputLength, args.nContextLength, args.nOutputLength
+  return simpleEncoderDecoderCell(encoderDecoder, vocabSize, inputLength,
+		contextSize, outputLength
 	)
 end
 
@@ -38,14 +38,14 @@ Flux.trainable(model::simpleEncoderDecoderCell) = model.encoderDecoderChain
 # end
 
 # Forward pass
-function (model::simpleEncoderDecoderCell)(x, _)
+function (model::simpleEncoderDecoderCell)(x)
 	return model.encoderDecoderChain(x)
 end
 
 # Pretty printing
 function Base.show(io::IO, model::simpleEncoderDecoderCell)
-	print(io, "simpleEncoderDecoder(", model.inputSize)
+	print(io, "simpleEncoderDecoder(", model.inputLength)
 	print(io, ", ", model.contextSize)
-	print(io, ", ", model.outputSize)
+	print(io, ", ", model.outputLength)
 	print(io, ")")
 end
