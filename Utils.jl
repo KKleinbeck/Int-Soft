@@ -1,12 +1,15 @@
 module Utils
 
-export Args, kldivergenceC, extractSample
+export TrainingParameters, kldivergenceC, extractSample
 
 using Parameters: @with_kw
 using Flux: crossentropy
 using CuArrays: @cufunc
 
-@with_kw mutable struct trainingParameters
+device = "gpu"
+tpu(x) = device == "gpu" ? gpu(x) : cpu(x)
+
+@with_kw mutable struct TrainingParameters
 	# Optimizer and loss function Hyperparameters
 	η::Float32        = 1e-3    # learning rate
 	wPenalty::Float32 = 1e-3
@@ -16,6 +19,54 @@ using CuArrays: @cufunc
 	shuffle::Bool  = true
 	throttle::Int  = 30
 	nEpochs::Int   = 10
+end
+
+function misclassificationRate(ŷ, y)
+	if length(size(ŷ)) == 1
+		ŷ = unflatten(ŷ)
+		y = unflatten(y)
+	end
+	ŷ, y = Flux.onecold(ŷ), Flux.onecold(y)
+
+	seqLength = length(y)
+	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
+	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
+
+	minLength = min(length(ŷ), length(y))
+	(reduce(+, ŷ[1:minLength] .!= y[1:minLength]) + abs(length(ŷ) - length(y))) / seqLength
+end
+
+function expressionIsEqual(ŷ, y)
+	if length(size(ŷ)) == 1
+		ŷ = unflatten(ŷ)
+		y = unflatten(y)
+	end
+	ŷ, y = Flux.onecold(ŷ), Flux.onecold(y)
+
+	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
+	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
+
+	length(ŷ) != length(y) && return false
+	all(ŷ .== y)
+end
+
+function evaluate(x, y, model)
+	# assume flattened samples here.
+	@info("Target:")
+	y = Flux.onecold(length(size(y)) == 1 ? unflatten(y) : y)
+	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
+	@info(y)
+
+	@info("The model results in:")
+	ŷ = model(x)
+	ŷ = Flux.onecold(length(size(ŷ)) == 1 ? unflatten(ŷ) : ŷ)
+	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
+	@info(ŷ)
+
+	minLength = min(length(ŷ), length(y))
+	@info("Number of mismatched tokens: $(
+		reduce(+, ŷ[1:minLength] .!= y[1:minLength]) + abs(length(ŷ) - length(y))
+	)")
 end
 
 # I define my own custom kldiv. Why? because in the current version of Flux it is not stable if y = 0

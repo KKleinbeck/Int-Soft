@@ -12,57 +12,13 @@ include("ModelZoo.jl")
 include("Utils.jl")
 using .Utils
 
-
-# --------------------------------------------------------------------------------------------------
-# Auxilliary functions and structures
-
-device = "gpu"
-tpu(x) = device == "gpu" ? gpu(x) : cpu(x)
-
-function misclassificationRate(ŷ, y)
-	ŷ = unflatten(ŷ)
-	y = unflatten(y)
-	seqLength = length(y)
-	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
-	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
-
-	minLength = min(length(ŷ), length(y))
-	(reduce(+, ŷ[1:minLength] .!= y[1:minLength]) + abs(length(ŷ) - length(y))) / seqLength
-end
-
-function expressionIsEqual(ŷ, y)
-	ŷ = unflatten(ŷ)
-	y = unflatten(y)
-	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
-	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
-
-	length(ŷ) != length(y) && return false
-	all(ŷ .== y)
-end
-
-function evaluate(x, y, model)
-	# assume flattened samples here.
-	@info("Target:")
-	y = unflatten(y)
-	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
-	@info(y)
-
-	@info("The model results in:")
-	ŷ = unflatten(model(x))
-	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
-	@info(ŷ)
-
-	minLength = min(length(ŷ), length(y))
-	@info("Number of mismatched tokens: $(
-		reduce(+, ŷ[1:minLength] .!= y[1:minLength]) + abs(length(ŷ) - length(y))
-	)")
-end
-
+include("Auxilliary.jl")
 
 # --------------------------------------------------------------------------------------------------
 # Loss function and training procedure
 
 function evaluationCallback(samples, model)
+	@error("Make me model independant fist")
 	# Go to the CPU, since we are doing a lot of scalar operations here.
 	results = [model(sample) for sample in eachcol(samples[1])] |> cpu
 	targets = [sample for sample in eachcol(samples[2])] |> cpu
@@ -86,30 +42,29 @@ function evaluationCallback(samples, model)
 	# TODO store results
 end
 
-# TODO: overload for the models
-function lossTarget(x, y, model, params, args::trainingParameters)
-	@error("Fix me first")
-	ŷ = model(x)
+"""
+	lossTarget(x, y, model, params, tp)
 
-	loss = sum(binarycrossentropy.(ŷ, y)) / (args.nOutputLength * args.batchsize)
-	# loss = sum(mae.(ŷ, y))
-	return loss #+ args.wPenalty * sum(norm, params)
+	Two methods are given: one for flattened training samples (here batches are matrices) and
+	unflattened training samples (batches are Arrays of Arrays).
+"""
+function lossTarget(x, y, model::Union{simpleEncoderDecoderCell}, params, tP::TrainingParameters)
+	return _lossTarget(x, y, model, params, tp) / tp.batchsize
+end
+function lossTarget(xs, ys, model::Union{recursiveAttentionCell}, params, tP::TrainingParameters)
+	return sum([_lossTarget(x, y, model, params, tp) for (x, y) in zip(xs, ys)]) / tp.batchsize
 end
 
-# Array input version
-function lossTargetA(x, y, model, params, args::trainingParameters)
+function _lossTarget(x, y, model, params, tP::TrainingParameters)
 	ŷ = model(x)
 
-	loss = 0
-	for (ŷi, yi) in zip(ŷ, y)
-		loss += sum(binarycrossentropy.(ŷi, yi)) / (args.nOutputLength * length(vocabulary) * args.batchsize)
-	end
-	# loss = sum(mae.(ŷ, y)) / (args.nOutputLength * args.batchsize)
+	loss = sum(binarycrossentropy.(ŷ, y)) / (tP.nOutputLength)
+	# loss = sum(mae.(ŷ, y))
 	return loss #+ args.wPenalty * sum(norm, params)
 end
 # TODO, the weigth decay results in NaN results, if present in the FIRST EPOCH (only if). Why?
 
-function trainEpoch(model, trainingSamples, evaluationSamples, args::trainingParameters)
+function trainEpoch(model, trainingSamples, evaluationSamples, args::TrainingParameters)
 	# align each sample along first dimension and create batches.
 	@info("Preparing Data, Optimizer and callbacks")
 	trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
@@ -140,7 +95,7 @@ end
 maxInputLength  = 10
 maxOutputLength = 10
 
-trainingParameters = trainingParameters(
+trainingParameters = TrainingParameters(
 	η = 1e-3,
 	wPenalty = 0.0, # wPenalty = 1e-3,
 
@@ -161,7 +116,10 @@ trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=1
 ) #|> tpu
 
 # model = simpleEncoderDecoder(parameterSpecification) |> tpu
-model = recursiveAttentionModel(parameterSpecification) #|> tpu
+model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
+	nEncoderIterations = 1, nDecoderIterations = 1,
+	encoderInterFFDimension = 128, decoderInterFFDimension = 512
+) #|> tpu
 # TODO make gpu's a possibility again
 
 trainEpoch(model, trainingSamples, evaluationSamples, parameterSpecification)

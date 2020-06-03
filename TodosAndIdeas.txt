@@ -1,16 +1,6 @@
-Next Things to do:
-  * Test the simple model with flat output against simple model with unflattened output.
-    Advantages:
-    - Unifies output across models (solves evaluation callback issue below)
-    - more motivated by interpretation of result
-    Disadvantages:
-    - Additional complexity (partially solved by providing a `unflatten` function) 
+DataPreparation / Utils:
+  These should no longer be a module. Remember: This affects the tests as well!
 
 Boilerplate code for the Models
   Currently I have to give a trainable, gpu and pretty print function for every model I create.
   This is bad design and a macro should handle this. Find a good way to create this macro.
-
-Evaluation Callback
-  kldivergence and binarycrossentropy can probably used for all model types; accuracy and precision,
-  however, needs to be redefined for each model architecture. Since we only differentiate
-  between flattened and unflattened data, this should be easily generalised.

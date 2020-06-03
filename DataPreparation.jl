@@ -108,6 +108,7 @@ end
 	Optional length parameter can be given, which pads `<EOS>` tokens
 """
 function flatten(expression)
+	# TODO equivalent to reshape(expression, :). Which is better?
 	vcat(unstack(expression, 2)...)
 end
 function flatten(expression, length::Int)
@@ -122,6 +123,7 @@ end
 	a parameter as well
 """
 function unflatten(expression)
+	# TODO equivalent to Flux.batch(chunk(expression, length(expression) ÷ length(vocabulary))). Whats better?
 	hcat(chunk(expression, length(expression) ÷ length(vocabulary))...)
 end
 function unflatten(expression, length::Int)
