@@ -1,6 +1,6 @@
 module DataPreparation
 
-export vocabulary, loadSamples, unflatten
+export vocabulary, loadSamples, flatten, unflatten, expandTo, tokenize
 
 using Flux: onehotbatch, onehot, onecold, rpad, chunk, unstack
 
@@ -73,8 +73,8 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 		@info("Flattening...")
 		@assert flattenTo[1] >= maxInputLength && flattenTo[2] >= maxOutputLength
 		@assert isnothing(expandToMaxLength)
-		data   = flattenExpressions(data,   flattenTo[1])
-		labels = flattenExpressions(labels, flattenTo[2])
+		data   = hcat(flatten.(data,   flattenTo[1])...)
+		labels = hcat(flatten.(labels, flattenTo[2])...)
 
 		return [data[:,1:end - nEvaluationSamples - 1], labels[:,1:end - nEvaluationSamples - 1]],
 			[data[:,end - nEvaluationSamples:end], labels[:,end - nEvaluationSamples:end]]
@@ -85,10 +85,10 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 		@assert isa(expandToMaxLength, Tuple)
 
 		if expandToMaxLength[1]
-			data = expandTo(data, maxInputLength)
+			data = expandTo.(data, maxInputLength)
 		end
 		if expandToMaxLength[2]
-			labels = expandTo(data, maxOutputLength)
+			labels = expandTo.(data, maxOutputLength)
 		end
 	end
 
@@ -97,21 +97,58 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 	 [data[end - nEvaluationSamples:end], labels[end - nEvaluationSamples:end]]
 end
 
-# Used when the sequence is not presented token-after-token but in full
-function flattenExpressions(expressions, length)
-	return hcat([
-		vcat(rpad(unstack(expression, 2), length, onehot("<EOS>", vocabulary))...)
-		for expression in expressions
-	]...)
+
+# --------------------------------------------------------------------------------------------------
+# Auxilliary functions
+
+"""
+	flatten(expression[, length])
+
+	Converts expression from format `(vocabSize, expressionLength)` to `(vocabSize * expressionLength)`.
+	Optional length parameter can be given, which pads `<EOS>` tokens
+"""
+function flatten(expression)
+	vcat(unstack(expression, 2)...)
+end
+function flatten(expression, length::Int)
+	vcat(rpad(unstack(expression, 2), length, onehot("<EOS>", vocabulary))...)
 end
 
-function expandTo(expressions, length)
-	return [hcat(expression, repeat(onehot("<EOS>", vocabulary), outer = [1, length - size(expression, 2)]))
-		for expression in expressions]
-end
+"""
+	unflatten(expression[, expressionLength])
 
+	Converts expression from format `(vocabSize * expressionLength)` to `(vocabSize, expressionLength)`.
+	`expressionLength` is implicitly calculated by assuming the above vocabulary; it can be given as
+	a parameter as well
+"""
 function unflatten(expression)
-	[onecold(token) for token in chunk(expression, length(expression)÷length(vocabulary))]
+	hcat(chunk(expression, length(expression) ÷ length(vocabulary))...)
+end
+function unflatten(expression, length::Int)
+	hcat(chunk(expression, length)...)
+end
+
+"""
+	expandTo(expression, length)
+
+	Converts expression from format `(vocabSize, expressionLength)` to `(vocabSize, length)`, by
+	padding `<EOS>` tokens to the right.
+"""
+function expandTo(expression, length)
+	return hcat(expression, repeat(onehot("<EOS>", vocabulary), outer = [1, length - size(expression, 2)]))
+end
+
+"""
+	tokenize(expression)
+
+	Converts (flattened or unflattened) expression into an array of tokens.
+"""
+function tokenize(expression)
+	if length(size(expression)) == 2 # flattened expression
+		expression = unflatten(expression)
+	end
+
+	return onecold(expression)
 end
 
 end # module
