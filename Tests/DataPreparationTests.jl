@@ -1,8 +1,6 @@
 using Test
-using Flux: onehotbatch
 
 include("../DataPreparation.jl")
-using .DataPreparation
 
 @testset "Expression Conversions" begin
 	expression = onehotbatch(["<SOS>", "<EOS>", "x"], vocabulary)

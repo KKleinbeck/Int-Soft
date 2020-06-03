@@ -1,7 +1,3 @@
-module DataPreparation
-
-export vocabulary, loadSamples, flatten, unflatten, expandTo, tokenize
-
 using Flux: onehotbatch, onehot, onecold, rpad, chunk, unstack
 
 vocabulary = ["<SOS>", "<EOS>", "x", "c", "p", "n", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
@@ -153,4 +149,4 @@ function tokenize(expression)
 	return onecold(expression)
 end
 
-end # module
+; # End of file

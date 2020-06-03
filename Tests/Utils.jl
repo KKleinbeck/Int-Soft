@@ -1,19 +1,17 @@
 using Test
 
-include("../DataPreparation")
-using .DataPreparation
+include("../DataPreparation.jl")
 
 include("../Utils.jl")
-using .Utils
 
 @testset "Figures of merit" begin
-	yUnflattened      = Flux.onehotbatch(["Sin", "x",     "<EOS>"], vocabulary)
-	ŷUnflattened      = Flux.onehotbatch(["Cos", "x",     "<EOS>"], vocabulary)
-	ŷUnflattenedShort = Flux.onehotbatch(["Sin", "<EOS>", "x"    ], vocabulary)
+	yUnflattened      = onehotbatch(["Sin", "x",     "<EOS>"], vocabulary)
+	ŷUnflattened      = onehotbatch(["Cos", "x",     "<EOS>"], vocabulary)
+	ŷUnflattenedShort = onehotbatch(["Sin", "<EOS>", "x"    ], vocabulary)
 
-	yFlattened      = DataPreparation.flatten(yUnflattened)
-	ŷFlattened      = DataPreparation.flatten(ŷUnflattened)
-	ŷFlattenedShort = DataPreparation.flatten(ŷUnflattenedShort)
+	yFlattened      = flatten(yUnflattened)
+	ŷFlattened      = flatten(ŷUnflattened)
+	ŷFlattenedShort = flatten(ŷUnflattenedShort)
 
 	@info("Testing misclassification rates...")
 	@test misclassificationRate(ŷUnflattened, yUnflattened) ≈ 1/3

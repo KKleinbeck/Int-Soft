@@ -1,9 +1,5 @@
-module Utils
-
-export TrainingParameters, kldivergenceC, extractSample
-
 using Parameters: @with_kw
-using Flux: crossentropy
+using Flux: crossentropy, onecold
 using CuArrays: @cufunc
 
 device = "gpu"
@@ -26,7 +22,7 @@ function misclassificationRate(ŷ, y)
 		ŷ = unflatten(ŷ)
 		y = unflatten(y)
 	end
-	ŷ, y = Flux.onecold(ŷ), Flux.onecold(y)
+	ŷ, y = onecold(ŷ), onecold(y)
 
 	seqLength = length(y)
 	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
@@ -41,7 +37,7 @@ function expressionIsEqual(ŷ, y)
 		ŷ = unflatten(ŷ)
 		y = unflatten(y)
 	end
-	ŷ, y = Flux.onecold(ŷ), Flux.onecold(y)
+	ŷ, y = onecold(ŷ), onecold(y)
 
 	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
 	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
@@ -53,13 +49,13 @@ end
 function evaluate(x, y, model)
 	# assume flattened samples here.
 	@info("Target:")
-	y = Flux.onecold(length(size(y)) == 1 ? unflatten(y) : y)
+	y = onecold(length(size(y)) == 1 ? unflatten(y) : y)
 	y = (k = findfirst(x -> x == 2, y)) == nothing ? y : y[1:k-1]
 	@info(y)
 
 	@info("The model results in:")
 	ŷ = model(x)
-	ŷ = Flux.onecold(length(size(ŷ)) == 1 ? unflatten(ŷ) : ŷ)
+	ŷ = onecold(length(size(ŷ)) == 1 ? unflatten(ŷ) : ŷ)
 	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token
 	@info(ŷ)
 
@@ -88,4 +84,4 @@ function extractSample(samples, index)
 	return samples[1][:,index], samples[2][:,index]
 end
 
-end  # module Utils
+; # End of file

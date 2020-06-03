@@ -5,31 +5,35 @@ using LinearAlgebra # norm
 using Printf
 
 include("DataPreparation.jl")
-using .DataPreparation
 
 include("ModelZoo.jl")
 
 include("Utils.jl")
-using .Utils
-
-include("Auxilliary.jl")
 
 # --------------------------------------------------------------------------------------------------
 # Loss function and training procedure
 
-function evaluationCallback(samples, model)
-	@error("Make me model independant fist")
+function evaluationCallback(samples, model::Union{simpleEncoderDecoderCell})
 	# Go to the CPU, since we are doing a lot of scalar operations here.
 	results = [model(sample) for sample in eachcol(samples[1])] |> cpu
 	targets = [sample for sample in eachcol(samples[2])] |> cpu
+	_evaluationCallback(results, targets)
+end
+function evaluationCallback(samples, model::Union{recursiveAttentionCell})
+	# Go to the CPU, since we are doing a lot of scalar operations here.
+	results = [model(sample) for sample in samples[1]] |> cpu
+	targets = [sample for sample in samples[2]] |> cpu
+	_evaluationCallback(results, targets)
+end
 
+function _evaluationCallback(results, targets)
 	protoLoss(ŷs, ys, loss) =
-		sum([sum(loss(ŷ, y)) for (ŷ, y) in zip(ŷs, ys)]) / length(ys)
+		sum([sum(loss(ŷ, y)) for (ŷ, y) in zip(ŷs, ys)]) / length(ys) # length(ys) == batchsize
 
 	@info("Evaluation results:\n")
 	namedLosses = [
-		["Binary Cross-Entropy", (ŷ, y) -> binarycrossentropy.(ŷ, y)  / size(y, 1)],
-		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  / size(y, 1)],
+		["Binary Cross-Entropy", (ŷ, y) -> binarycrossentropy.(ŷ, y)  / (length(y) / length(vocabulary))],
+		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  / (length(y) / length(vocabulary))],
 		# ["L¹ Loss", mae],
 		["Misclassification Rate", misclassificationRate],
 		["Fraction of correct Results", expressionIsEqual]
