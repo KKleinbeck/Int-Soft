@@ -104,11 +104,10 @@ end
 	Optional length parameter can be given, which pads `<EOS>` tokens
 """
 function flatten(expression)
-	# TODO equivalent to reshape(expression, :). Which is better?
-	vcat(unstack(expression, 2)...)
+	reshape(expression, :)
 end
 function flatten(expression, length::Int)
-	vcat(rpad(unstack(expression, 2), length, onehot("<EOS>", vocabulary))...)
+	reshape(expandTo(expression, length), :)
 end
 
 """

@@ -98,7 +98,7 @@ function gpu(model::recursiveAttentionCell)
 		Flux.gpu(model.estimator), Flux.gpu(model.decoderLinearAttentionUnit),
 		Flux.gpu(model.decoderExpressionFeedForward), Flux.gpu(model.decoderPredictor),
 		model.nEncodingIterations, model.encoderInterFFDimension,
-		model.nDecodingIterations, model.decoderInterFFDimension
+		model.nDecodingIterations, model.decoderInterFFDimension,
 		model.vocabSize, model.inputLength, model.outputLength
 	)
 end
@@ -108,7 +108,7 @@ function cpu(model::recursiveAttentionCell)
 		Flux.cpu(model.estimator), Flux.cpu(model.decoderLinearAttentionUnit),
 		Flux.cpu(model.decoderExpressionFeedForward), Flux.cpu(model.decoderPredictor),
 		model.nEncodingIterations, model.encoderInterFFDimension,
-		model.nDecodingIterations, model.decoderInterFFDimension
+		model.nDecodingIterations, model.decoderInterFFDimension,
 		model.vocabSize, model.inputLength, model.outputLength
 	)
 end

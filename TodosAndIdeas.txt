@@ -1,3 +1,18 @@
 Boilerplate code for the Models
   Currently I have to give a trainable, gpu and pretty print function for every model I create.
   This is bad design and a macro should handle this. Find a good way to create this macro.
+
+Memory efficient DataLoader:
+  Flux's current data loader allocates space of the _same size as the training data_ upon
+  calling it (its iterator). Obviously, this implies we loose ~ 50% of GPU memory, which is not
+  acceptable. Write custom data loader which does not allocates that much memory.
+
+  Even with this out of the way it is obvious that memory will get sparse for large data sets.
+  For this I propose a two Stage DataLoader:
+  - Stage 1: RAM -> GPU
+    Store samples in the RAM and only load chunks into the GPU. When one chunk is used, free the
+    memory and get the next chunk from RAM.
+
+  - Stage 2: HDD -> RAM
+    Eventually RAM will be sparse as well. In the background, perform loading of new samples
+    whenever space is freed up.

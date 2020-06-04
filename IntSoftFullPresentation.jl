@@ -72,14 +72,15 @@ end
 function trainEpoch(model, trainingSamples, evaluationSamples, tP::TrainingParameters)
 	# align each sample along first dimension and create batches.
 	@info("Preparing Data, Optimizer and callbacks")
-	trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
-		batchsize = tP.batchsize, shuffle = tP.shuffle
-	)
+	# trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
+	# 	batchsize = tP.batchsize, shuffle = tP.shuffle
+	# )
 
   # Initialize Hyperparameters
 	hyperParams = params(model)
 
-  loss(x, y) = lossTarget(x, y, model, hyperParams, tP)
+	# loss(x, y) = lossTarget(x, y, model, hyperParams, tP)
+	loss(d) = lossTarget(d[1], d[2], model, hyperParams, tP)
 
 	evalcb = () -> evaluationCallback(evaluationSamples, model)
 
@@ -115,8 +116,7 @@ model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength
 model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
 	nEncoderIterations = 1, nDecoderIterations = 1,
 	encoderInterFFDimension = 128, decoderInterFFDimension = 512
-) #|> tpu
-# TODO make gpu's a possibility again
+) |> tpu
 
 
 # --------------------------------------------------------------------------------------------------
@@ -127,6 +127,7 @@ trainingParameters = TrainingParameters(
 	wPenalty = 0.0, # wPenalty = 1e-3,
 
 	nEpochs = 50,
+	shuffle = false,
 	batchsize = 512
 )
 

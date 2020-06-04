@@ -21,7 +21,7 @@ function simpleEncoderDecoder(vocabSize, inputLength, outputLength; contextSize 
 
 	encoderDecoder = Chain(
 		Dense(inputLength * vocabSize, contextSize, σ),
-		Dense(contextSize, outputLength * vocabSize, σ)
+		Dense(contextSize, outputLength * vocabSize)
 	)
 
   return simpleEncoderDecoderCell(encoderDecoder, vocabSize, inputLength,
@@ -45,7 +45,7 @@ end
 
 # Forward pass
 function (model::simpleEncoderDecoderCell)(x)
-	return model.encoderDecoderChain(x)
+	return σ.(model.encoderDecoderChain(x))
 end
 
 # Pretty printing

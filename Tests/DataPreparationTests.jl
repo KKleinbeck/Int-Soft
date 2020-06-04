@@ -13,9 +13,9 @@ include("../DataPreparation.jl")
 
 	flatExpression1 = flatten(expression)
 	@info("Testing unflattening ...")
-	@test size(unflatten(flatExpression1))    == (vocabSize, 3)				# proper size #1
-	@test size(unflatten(flatExpression1, 3)) == (vocabSize, 3)				# proper size #2
-	@test unflatten(flatExpression1) == unflatten(flatExpression1, 3) # correct results either way
+	@test size(unflatten(flatExpression1))        == (vocabSize, 3)		    # proper size #1
+	@test size(unflatten(flatExpression1, 36, 3)) == (vocabSize, 3)		    # proper size #2
+	@test unflatten(flatExpression1) == unflatten(flatExpression1, 36, 3) # correct results either way
 
 	flatExpression2 = flatten(expression, 10)
 	@info("Testing expanding of unflattened expressions...")
