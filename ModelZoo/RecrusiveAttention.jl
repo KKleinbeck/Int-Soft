@@ -92,13 +92,16 @@ Flux.trainable(model::recursiveAttentionCell) =
 	 model.decoderLinearAttentionUnit, model.decoderFeedForward,
 	 model.decoderPredictor, model.estimator)
 
-# function gpu(model::recursiveAttentionCell)
-# 	return recursiveAttentionCell(
-# 		Flux.gpu(model.encoderFeedForward), Flux.gpu(model.decoderFeedForward),
-# 		model.encoderIterations, model.decoderIterations, model.vocabSize,
-# 		model.inputLength, model.outputLength
-# 	)
-# end
+function gpu(model::recursiveAttentionCell)
+	return recursiveAttentionCell(
+		Flux.gpu(model.encoderLinearAttentionUnit), Flux.gpu(model.encoderTokenFeedForward),
+		Flux.gpu(model.estimator), Flux.gpu(model.decoderLinearAttentionUnit),
+		Flux.gpu(model.decoderExpressionFeedForward), Flux.gpu(model.decoderPredictor),
+		model.nEncodingIterations, model.encoderInterFFDimension,
+		model.nDecodingIterations, model.decoderInterFFDimension
+		model.vocabSize, model.inputLength, model.outputLength
+	)
+end
 
 function _attention(Q, KV) # Query, Kev Value
 	# Softmax along first dimension, so that multiplaction happens with a L¹-normalized vector

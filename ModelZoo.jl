@@ -1,3 +1,5 @@
+import Flux: gpu
+
 include("ModelZoo/SimpleModel.jl")
 include("ModelZoo/RecrusiveAttention.jl")
 

@@ -21,7 +21,7 @@ function simpleEncoderDecoder(vocabSize, inputLength, outputLength; contextSize 
 
 	encoderDecoder = Chain(
 		Dense(inputLength * vocabSize, contextSize, σ),
-		Dense(contextSize, outputLength * vocabSize)
+		Dense(contextSize, outputLength * vocabSize, σ)
 	)
 
   return simpleEncoderDecoderCell(encoderDecoder, vocabSize, inputLength,
@@ -32,17 +32,15 @@ end
 # Parameters
 Flux.trainable(model::simpleEncoderDecoderCell) = model.encoderDecoderChain
 
-# function gpu(model::simpleEncoderDecoderCell)
-# 	return simpleEncoderDecoderCell(Flux.gpu(model.encoderDecoderChain), model.vocabSize,
-# 		model.inputSize, model.contextSize, model.outputSize
-# 	)
-# end
+function gpu(model::simpleEncoderDecoderCell)
+	return simpleEncoderDecoderCell(Flux.gpu(model.encoderDecoderChain), model.vocabSize,
+		model.inputLength, model.contextSize, model.outputLength
+	)
+end
 
 # Forward pass
 function (model::simpleEncoderDecoderCell)(x)
-	x = model.encoderDecoderChain(x)
-	x = unflatten.(unstack(x, 2))
-	return hcat(flatten.(softmax.(x))...)
+	return model.encoderDecoderChain(x)
 end
 
 # Pretty printing
