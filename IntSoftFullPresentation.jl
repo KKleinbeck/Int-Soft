@@ -15,6 +15,7 @@ include("Utils.jl")
 
 function evaluationCallback(samples, model::Union{simpleEncoderDecoderCell})
 	# Go to the CPU, since we are doing a lot of scalar operations here.
+	# `[model(sample)...] == (length)` array vs. `model(sample) == (length, 1)` array
 	results = [model(sample) for sample in eachcol(samples[1])] |> cpu
 	targets = [sample for sample in eachcol(samples[2])] |> cpu
 	_evaluationCallback(results, targets)

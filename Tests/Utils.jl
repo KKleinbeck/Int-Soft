@@ -12,12 +12,14 @@ include("../Utils.jl")
 	yFlattened      = flatten(yUnflattened)
 	ŷFlattened      = flatten(ŷUnflattened)
 	ŷFlattenedShort = flatten(ŷUnflattenedShort)
+	ŷFlattenedProb  = vcat(flatten(ŷUnflattenedShort)...) # unsqueezed sequence
 
 	@info("Testing misclassification rates...")
 	@test misclassificationRate(ŷUnflattened, yUnflattened) ≈ 1/3
 	@test misclassificationRate(ŷUnflattenedShort, yUnflattened) ≈ 1/3
 	@test misclassificationRate(ŷFlattened, yFlattened) ≈ 1/3
 	@test misclassificationRate(ŷFlattenedShort, yFlattened) ≈ 1/3
+	@test misclassificationRate(ŷFlattenedProb,  yFlattened) ≈ 1/3
 
 	@info("Testing expression equality")
 	@test !expressionIsEqual(ŷUnflattened, yUnflattened)

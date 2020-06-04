@@ -18,7 +18,7 @@ tpu(x) = device == "gpu" ? gpu(x) : cpu(x)
 end
 
 function misclassificationRate(ŷ, y)
-	if length(size(ŷ)) == 1
+	if length(size(ŷ)) == 1 || size(ŷ)[2] == 1
 		ŷ = unflatten(ŷ)
 		y = unflatten(y)
 	end
@@ -33,7 +33,7 @@ function misclassificationRate(ŷ, y)
 end
 
 function expressionIsEqual(ŷ, y)
-	if length(size(ŷ)) == 1
+	if length(size(ŷ)) == 1 || size(ŷ)[2] == 1
 		ŷ = unflatten(ŷ)
 		y = unflatten(y)
 	end
