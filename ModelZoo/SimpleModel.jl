@@ -37,6 +37,11 @@ function gpu(model::simpleEncoderDecoderCell)
 		model.inputLength, model.contextSize, model.outputLength
 	)
 end
+function cpu(model::simpleEncoderDecoderCell)
+	return simpleEncoderDecoderCell(Flux.cpu(model.encoderDecoderChain), model.vocabSize,
+		model.inputLength, model.contextSize, model.outputLength
+	)
+end
 
 # Forward pass
 function (model::simpleEncoderDecoderCell)(x)

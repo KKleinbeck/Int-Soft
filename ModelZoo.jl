@@ -1,4 +1,4 @@
-import Flux: gpu
+import Flux: gpu, cpu
 
 include("ModelZoo/SimpleModel.jl")
 include("ModelZoo/RecrusiveAttention.jl")

@@ -109,9 +109,9 @@ trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples
 	flattenTo          = (maxInputLength, maxOutputLength),
 	# expandToMaxLength  = (false, true),
 	type               = Float32
-) #|> tpu
+) |> tpu
 
-model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) #|> tpu
+model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) |> tpu
 model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
 	nEncoderIterations = 1, nDecoderIterations = 1,
 	encoderInterFFDimension = 128, decoderInterFFDimension = 512
@@ -126,8 +126,8 @@ trainingParameters = TrainingParameters(
 	η = 1e-3,
 	wPenalty = 0.0, # wPenalty = 1e-3,
 
-	nEpochs = 1,
-	batchsize = 256
+	nEpochs = 50,
+	batchsize = 512
 )
 
 trainEpoch(model, trainingSamples, evaluationSamples, trainingParameters)

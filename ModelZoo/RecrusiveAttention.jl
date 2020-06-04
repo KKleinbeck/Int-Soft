@@ -102,6 +102,16 @@ function gpu(model::recursiveAttentionCell)
 		model.vocabSize, model.inputLength, model.outputLength
 	)
 end
+function cpu(model::recursiveAttentionCell)
+	return recursiveAttentionCell(
+		Flux.cpu(model.encoderLinearAttentionUnit), Flux.cpu(model.encoderTokenFeedForward),
+		Flux.cpu(model.estimator), Flux.cpu(model.decoderLinearAttentionUnit),
+		Flux.cpu(model.decoderExpressionFeedForward), Flux.cpu(model.decoderPredictor),
+		model.nEncodingIterations, model.encoderInterFFDimension,
+		model.nDecodingIterations, model.decoderInterFFDimension
+		model.vocabSize, model.inputLength, model.outputLength
+	)
+end
 
 function _attention(Q, KV) # Query, Kev Value
 	# Softmax along first dimension, so that multiplaction happens with a L¹-normalized vector
