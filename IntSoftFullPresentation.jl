@@ -95,15 +95,15 @@ end
 # --------------------------------------------------------------------------------------------------
 # Data and Model Loading
 
-maxInputLength  = 10
-maxOutputLength = 10
+maxInputLength  = 100
+maxOutputLength = 100
 
-# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
+trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
 # trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
-trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
 	evaluationFraction = 0.025,
-	maxInputLength     = maxInputLength,
-	maxOutputLength    = maxOutputLength,
+	maxInputLength     = 20,
+	maxOutputLength    = 20,
 	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
 	flattenTo          = (maxInputLength, maxOutputLength),
 	# expandToMaxLength  = (false, true),
@@ -126,29 +126,29 @@ trainingParameters = TrainingParameters(
 	wPenalty = 0.0, # wPenalty = 1e-3,
 
 	nEpochs = 1,
-	batchsize = 1
+	batchsize = 256
 )
 
 trainEpoch(model, trainingSamples, evaluationSamples, trainingParameters)
 
-# This code finds the NaN gradients
-for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 10, shuffle = false)
-  tc = 0; ps = params(model)
-  gs = gradient(ps) do
-    tl = lossTargetA(x, y, model, ps, parameterSpecification)
-    tc = tl
-    return tl
-		# return sum(norm.(model(x)))
-  end # gradient evaluation
-  println("-----------------------------")
-  # println(any(x -> x < 0 || x > 1 || isnan(x) || isinf(x), model(x)))
-  println(tc)
-  # println(gs[model[1].W][1:10])
-  # println(model[1].W[1:10])
-  opt = ADAM(0.00001)
-  Flux.update!(opt, ps, gs)
-  # println(get!(opt.state, model[1].W[1], (0.0f0, 0.0f0, opt.beta)))
-  # if isnan(gs[model[1].W][1])
-    # break
-  # end
-end
+# This code finds the NaN gradients --- PROBABLY OUTDATED
+# for (x, y) in Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2], batchsize = 10, shuffle = false)
+#   tc = 0; ps = params(model)
+#   gs = gradient(ps) do
+#     tl = lossTargetA(x, y, model, ps, parameterSpecification)
+#     tc = tl
+#     return tl
+# 		# return sum(norm.(model(x)))
+#   end # gradient evaluation
+#   println("-----------------------------")
+#   # println(any(x -> x < 0 || x > 1 || isnan(x) || isinf(x), model(x)))
+#   println(tc)
+#   # println(gs[model[1].W][1:10])
+#   # println(model[1].W[1:10])
+#   opt = ADAM(0.00001)
+#   Flux.update!(opt, ps, gs)
+#   # println(get!(opt.state, model[1].W[1], (0.0f0, 0.0f0, opt.beta)))
+#   # if isnan(gs[model[1].W][1])
+#     # break
+#   # end
+# end

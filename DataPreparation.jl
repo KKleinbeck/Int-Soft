@@ -119,11 +119,10 @@ end
 	a parameter as well
 """
 function unflatten(expression)
-	# TODO equivalent to Flux.batch(chunk(expression, length(expression) ÷ length(vocabulary))). Whats better?
-	hcat(chunk(expression, length(expression) ÷ length(vocabulary))...)
+	reshape(expression, length(vocabulary), length(expression) ÷ length(vocabulary))
 end
-function unflatten(expression, length::Int)
-	hcat(chunk(expression, length)...)
+function unflatten(expression, vocabSize, length::Int)
+	reshape(expression, vocabSize, length)
 end
 
 """

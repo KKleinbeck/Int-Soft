@@ -1,3 +1,5 @@
+using Flux: unstack
+
 # --------------------------------------------------------------------------------------------------
 # Simple Model:
 #
@@ -19,8 +21,7 @@ function simpleEncoderDecoder(vocabSize, inputLength, outputLength; contextSize 
 
 	encoderDecoder = Chain(
 		Dense(inputLength * vocabSize, contextSize, σ),
-		Dense(contextSize, outputLength * vocabSize),
-		softmax # TODO: in practice, each _token_ should be individually softmaxed, not the entire _expression_
+		Dense(contextSize, outputLength * vocabSize)
 	)
 
   return simpleEncoderDecoderCell(encoderDecoder, vocabSize, inputLength,
@@ -39,7 +40,9 @@ Flux.trainable(model::simpleEncoderDecoderCell) = model.encoderDecoderChain
 
 # Forward pass
 function (model::simpleEncoderDecoderCell)(x)
-	return model.encoderDecoderChain(x)
+	x = model.encoderDecoderChain(x)
+	x = unflatten.(unstack(x, 2))
+	return hcat(flatten.(softmax.(x))...)
 end
 
 # Pretty printing
