@@ -18,10 +18,8 @@ tpu(x) = device == "gpu" ? gpu(x) : cpu(x)
 end
 
 function misclassificationRate(ŷ, y)
-	if length(size(ŷ)) == 1 || size(ŷ)[2] == 1
-		ŷ = unflatten(ŷ)
-		y = unflatten(y)
-	end
+	ŷ = unflatten(ŷ)
+	y = unflatten(y)
 	ŷ, y = onecold(ŷ), onecold(y)
 
 	seqLength = length(y)
@@ -33,10 +31,8 @@ function misclassificationRate(ŷ, y)
 end
 
 function expressionIsEqual(ŷ, y)
-	if length(size(ŷ)) == 1 || size(ŷ)[2] == 1
-		ŷ = unflatten(ŷ)
-		y = unflatten(y)
-	end
+	ŷ = unflatten(ŷ)
+	y = unflatten(y)
 	ŷ, y = onecold(ŷ), onecold(y)
 
 	ŷ = (k = findfirst(x -> x == 2, ŷ)) == nothing ? ŷ : ŷ[1:k-1] # Token `2` is the <EOS> token

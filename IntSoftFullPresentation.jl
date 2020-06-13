@@ -22,8 +22,8 @@ function evaluationCallback(samples, model::Union{simpleEncoderDecoderCell})
 end
 function evaluationCallback(samples, model::Union{recursiveAttentionCell})
 	# Go to the CPU, since we are doing a lot of scalar operations here.
-	results = [model(sample) for sample in samples[1]] |> cpu
-	targets = [sample for sample in samples[2]] |> cpu
+	results = [flatten(model(sample)) for sample in samples[1]] |> cpu
+	targets = [flatten(sample) for sample in samples[2]] |> cpu
 	_evaluationCallback(results, targets)
 end
 
@@ -34,7 +34,7 @@ function _evaluationCallback(results, targets)
 	@info("Evaluation results:\n")
 	namedLosses = [
 		["Binary Cross-Entropy", (ŷ, y) -> binarycrossentropy.(ŷ, y)  / (length(y) / length(vocabulary))],
-		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  ],#/ (length(y) / length(vocabulary))],
+		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  / (length(y) / length(vocabulary))],
 		# ["L¹ Loss", mae],
 		["Misclassification Rate", misclassificationRate],
 		["Fraction of correct Results", expressionIsEqual]
