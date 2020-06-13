@@ -1,4 +1,5 @@
 using Flux: onehotbatch, onehot, onecold, rpad, chunk, unstack
+using Zygote: @adjoint
 
 vocabulary = ["<SOS>", "<EOS>", "x", "c", "p", "n", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 	"Exp", "Log", "Sin", "Cos", "Tan", "Cot", "Sec", "Csc",
@@ -46,7 +47,8 @@ function encode(expressions)
 end
 
 function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
-		maxInputLength = Inf, maxOutputLength = Inf, flattenTo = nothing, expandToMaxLength = nothing,
+		maxInputLength = Inf, maxOutputLength = Inf, flattenTo = nothing,
+		expandInputTo::Union{Nothing,Int} = nothing, expandOutputTo::Union{Nothing,Int} = nothing,
 		dissallowedTokens = r"NON")
 	@assert 0 <= evaluationFraction <= 1
 	@info("Loading Samples. Stand by...")
@@ -76,15 +78,14 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 			[data[:,end - nEvaluationSamples:end], labels[:,end - nEvaluationSamples:end]]
 	end
 
-	if !isnothing(expandToMaxLength)
+	if !isnothing(expandInputTo) || !isnothing(expandOutputTo)
 		@info("Expanding to maximum length...")
-		@assert isa(expandToMaxLength, Tuple)
 
-		if expandToMaxLength[1]
-			data = expandTo.(data, maxInputLength)
+		if !isnothing(expandInputTo)
+			data = expandTo.(data, expandInputTo)
 		end
-		if expandToMaxLength[2]
-			labels = expandTo.(data, maxOutputLength)
+		if !isnothing(expandOutputTo)
+			labels = expandTo.(data, expandOutputTo)
 		end
 	end
 
@@ -131,8 +132,13 @@ end
 	padding `<EOS>` tokens to the right.
 """
 function expandTo(expression, length)
-	return hcat(expression, repeat(onehot("<EOS>", vocabulary), outer = [1, length - size(expression, 2)]))
+	return hcat(expression,
+		one(typeof(expression[1])) * repeat(
+			onehot("<EOS>", vocabulary), outer = [1, length - size(expression, 2)]
+		)
+	)
 end
+@adjoint expandTo(expression, length) = expandTo(expression, length), Δ -> (Δ[:,1:size(expression)[2]], 0.)
 
 """
 	tokenize(expression)

@@ -34,7 +34,7 @@ function _evaluationCallback(results, targets)
 	@info("Evaluation results:\n")
 	namedLosses = [
 		["Binary Cross-Entropy", (ŷ, y) -> binarycrossentropy.(ŷ, y)  / (length(y) / length(vocabulary))],
-		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  / (length(y) / length(vocabulary))],
+		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  ],#/ (length(y) / length(vocabulary))],
 		# ["L¹ Loss", mae],
 		["Misclassification Rate", misclassificationRate],
 		["Fraction of correct Results", expressionIsEqual]
@@ -57,7 +57,12 @@ function lossTarget(x, y, model::Union{simpleEncoderDecoderCell}, params, tP::Tr
 	return _lossTarget(x, y, model, params, tP) / tP.batchsize
 end
 function lossTarget(xs, ys, model::Union{recursiveAttentionCell}, params, tP::TrainingParameters)
-	return sum([_lossTarget(x, y, model, params, tP) for (x, y) in zip(xs, ys)]) / tP.batchsize
+	loss = 0
+	for i in 1:length(xs)
+		loss += _lossTarget(xs[i], ys[i], model, params, tP)
+	end
+	return loss
+	# return sum([_lossTarget(x, y, model, params, tP) for (x, y) in zip(xs, ys)]) / tP.batchsize
 end
 
 function _lossTarget(x, y, model, params, tP::TrainingParameters)
@@ -72,15 +77,14 @@ end
 function trainEpoch(model, trainingSamples, evaluationSamples, tP::TrainingParameters)
 	# align each sample along first dimension and create batches.
 	@info("Preparing Data, Optimizer and callbacks")
-	# trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
-	# 	batchsize = tP.batchsize, shuffle = tP.shuffle
-	# )
+	trainingSamples = Flux.Data.DataLoader(trainingSamples[1], trainingSamples[2],
+		batchsize = tP.batchsize, shuffle = tP.shuffle
+	)
 
   # Initialize Hyperparameters
 	hyperParams = params(model)
 
-	# loss(x, y) = lossTarget(x, y, model, hyperParams, tP)
-	loss(d) = lossTarget(d[1], d[2], model, hyperParams, tP)
+	loss(x, y) = lossTarget(x, y, model, hyperParams, tP)
 
 	evalcb = () -> evaluationCallback(evaluationSamples, model)
 
@@ -100,20 +104,21 @@ end
 maxInputLength  = 100
 maxOutputLength = 100
 
-trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
-# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
+trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
 # trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
 	evaluationFraction = 0.025,
-	maxInputLength     = 20,
-	maxOutputLength    = 20,
+	maxInputLength     = 10,
+	maxOutputLength    = 10,
 	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
-	flattenTo          = (maxInputLength, maxOutputLength),
-	# expandToMaxLength  = (false, true),
+	# flattenTo          = (maxInputLength, maxOutputLength),
+	# expandInputTo      = maxInputLength,
+	expandOutputTo     = maxOutputLength,
 	type               = Float32
 ) |> tpu
 
-model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) |> tpu
-model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [256];
+# model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) |> tpu
+model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [512];
 	nEncoderIterations = 1, nDecoderIterations = 1,
 	encoderInterFFDimension = 128, decoderInterFFDimension = 512
 ) |> tpu
@@ -126,7 +131,7 @@ trainingParameters = TrainingParameters(
 	η = 1e-3,
 	wPenalty = 0.0, # wPenalty = 1e-3,
 
-	nEpochs = 50,
+	nEpochs = 10,
 	shuffle = false,
 	batchsize = 512
 )

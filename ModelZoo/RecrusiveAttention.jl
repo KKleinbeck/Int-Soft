@@ -1,3 +1,5 @@
+using Zygote: @adjoint
+
 # --------------------------------------------------------------------------------------------------
 # Recursive Attention Model:
 #
@@ -42,11 +44,11 @@ function recursiveAttentionModel(vocabSize::Int, inputLength::Int, outputLength:
 		nEncoderIterations = 6, nDecoderIterations = 6,
 		encoderInterFFDimension = 128, decoderInterFFDimension = 512)
 	@info("Creating Estimator\n")
-	estimatorLayers = [Dense(vocabSize * inputLength, estimatorTopology[1])]
+	estimatorLayers = [Dense(vocabSize * inputLength, estimatorTopology[1], σ)]
 	for i in 1:length(estimatorTopology) - 1
-		push!(estimatorLayers, Dense(estimatorTopology[i], estimatorTopology[i+1]) )
+		push!(estimatorLayers, Dense(estimatorTopology[i], estimatorTopology[i+1], σ) )
 	end
-	push!(estimatorLayers, Dense(estimatorTopology[end], vocabSize * outputLength))
+	push!(estimatorLayers, Dense(estimatorTopology[end], vocabSize * outputLength, σ))
 
 	estimator = Chain(estimatorLayers...)
 
@@ -88,8 +90,8 @@ end
 
 # parameters
 Flux.trainable(model::recursiveAttentionCell) =
-	(model.encoderLinearAttentionUnit, model.encoderFeedForward,
-	 model.decoderLinearAttentionUnit, model.decoderFeedForward,
+	(model.encoderLinearAttentionUnit, model.encoderTokenFeedForward,
+	 model.decoderLinearAttentionUnit, model.decoderExpressionFeedForward,
 	 model.decoderPredictor, model.estimator)
 
 function gpu(model::recursiveAttentionCell)
@@ -136,26 +138,28 @@ function _encode(model::recursiveAttentionCell, x)
 end
 
 function _estimate(model, x)
-	x = DataPreparation.flatten(x, model.inputLength)
+	x = flatten(x, model.inputLength)
+	# x = reshape(expandTo(x, model.inputLength), :)
 
 	return model.estimator(x)
 end
+# @adjoint _estimate(model, x) = _estimate(model, x), Δ -> (Δ, )
 
 function _decode(model::recursiveAttentionCell, context, ŷ)
-	ŷ = unflatten(ŷ, model.outputLength)	# == (batchsize, vocabSize, outputLength)
+	ŷ = unflatten(ŷ, model.vocabSize, model.outputLength)	# == (batchsize, vocabSize, outputLength)
 
 	for i in 1:model.nDecodingIterations
 		ŷ = ŷ .+ _attention(model.decoderLinearAttentionUnit(context), ŷ, context)
 		ŷ = softmax(ŷ) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
 
-		ŷ = DataPreparation.flatten(ŷ) # == (batchsize, vocabSize * outputLength)
+		ŷ = flatten(ŷ) # == (batchsize, vocabSize * outputLength)
 		ŷ = ŷ + model.decoderExpressionFeedForward(ŷ)
-		ŷ = unflatten(ŷ, model.outputLength)	# == (batchsize, vocabSize, outputLength)
+		ŷ = unflatten(ŷ, model.vocabSize, model.outputLength)	# == (batchsize, vocabSize, outputLength)
 		ŷ = softmax(ŷ) # ŷ = mapslices.(v -> v ./ norm(v), ŷ, dims = 1)
 	end
 
-	ŷ = model.decoderPredictor(DataPreparation.flatten(ŷ))
-	return softmax(unflatten(ŷ, model.outputLength))
+	ŷ = model.decoderPredictor(flatten(ŷ))
+	return softmax(unflatten(ŷ, model.vocabSize, model.outputLength))
 end
 
 # forward pass
