@@ -70,7 +70,7 @@ function loadSamples(filename::String; evaluationFraction = 0.1, type = Bool,
 	if !isnothing(flattenTo)
 		@info("Flattening...")
 		@assert flattenTo[1] >= maxInputLength && flattenTo[2] >= maxOutputLength
-		@assert isnothing(expandToMaxLength)
+		@assert isnothing(expandInputTo) && isnothing(expandOutputTo)
 		data   = hcat(flatten.(data,   flattenTo[1])...)
 		labels = hcat(flatten.(labels, flattenTo[2])...)
 

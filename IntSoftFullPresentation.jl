@@ -13,40 +13,6 @@ include("Utils.jl")
 # --------------------------------------------------------------------------------------------------
 # Loss function and training procedure
 
-function evaluationCallback(samples, model::Union{simpleEncoderDecoderCell})
-	# Go to the CPU, since we are doing a lot of scalar operations here.
-	# `[model(sample)...] == (length)` array vs. `model(sample) == (length, 1)` array
-	results = [model(sample) for sample in eachcol(samples[1])] |> cpu
-	targets = [sample for sample in eachcol(samples[2])] |> cpu
-	_evaluationCallback(results, targets)
-end
-function evaluationCallback(samples, model::Union{recursiveAttentionCell})
-	# Go to the CPU, since we are doing a lot of scalar operations here.
-	results = [flatten(model(sample)) for sample in samples[1]] |> cpu
-	targets = [flatten(sample) for sample in samples[2]] |> cpu
-	_evaluationCallback(results, targets)
-end
-
-function _evaluationCallback(results, targets)
-	protoLoss(ŷs, ys, loss) =
-		sum([sum(loss(ŷ, y)) for (ŷ, y) in zip(ŷs, ys)]) / length(ys) # length(ys) == batchsize
-
-	@info("Evaluation results:\n")
-	namedLosses = [
-		["Binary Cross-Entropy", (ŷ, y) -> binarycrossentropy.(ŷ, y)  / (length(y) / length(vocabulary))],
-		["Kullback-Leibler Divergence", (ŷ, y) -> kldivergenceC(ŷ, y)  / (length(y) / length(vocabulary))],
-		# ["L¹ Loss", mae],
-		["Misclassification Rate", misclassificationRate],
-		["Fraction of correct Results", expressionIsEqual]
-	]
-	for namedLoss in namedLosses
-		@info(@sprintf("  %-30s %.5f", namedLoss[1], protoLoss(results, targets, namedLoss[2])))
-	end
-	@info("----------------------------------------")
-
-	# TODO store results
-end
-
 """
 	lossTarget(x, y, model, params, tp)
 
