@@ -1,6 +1,10 @@
+Properly benchmark recursive attention algorithm
+  Precisely time how much time is spend in each subcall.
+
 Boilerplate code for the Models
   Currently I have to give a trainable, gpu and pretty print function for every model I create.
   This is bad design and a macro should handle this. Find a good way to create this macro.
+
 
 Memory efficient DataLoader:
   Flux's current data loader allocates space of the _same size as the training data_ upon
@@ -16,3 +20,18 @@ Memory efficient DataLoader:
   - Stage 2: HDD -> RAM
     Eventually RAM will be sparse as well. In the background, perform loading of new samples
     whenever space is freed up.
+
+
+Dropout
+  Read into Dropout (what are good values; how to adept it during training). This can probably
+  benefit training a lot.
+
+
+Interface for a maths library
+  Start thinking about a proper interface for a maths library. How should it look like? How should
+  the user be able to interact with it? What features should initially be included? Which of those
+  are from exact algorithms, which are learned algorithms?
+
+Implement a tree based data generation
+  This would probably benefits an eventual math library and give new opportunities for optimization
+  and simplification of data generation.

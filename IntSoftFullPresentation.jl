@@ -24,18 +24,16 @@ function lossTarget(x, y, model::Union{simpleEncoderDecoderCell}, params, tP::Tr
 end
 function lossTarget(xs, ys, model::Union{recursiveAttentionCell}, params, tP::TrainingParameters)
 	loss = 0
-	for i in 1:length(xs)
+	for i in 1:length(xs) # Why don't use zip here? Because then we need a Zygote gradient definition for that
 		loss += _lossTarget(xs[i], ys[i], model, params, tP)
 	end
 	return loss
-	# return sum([_lossTarget(x, y, model, params, tP) for (x, y) in zip(xs, ys)]) / tP.batchsize
 end
 
 function _lossTarget(x, y, model, params, tP::TrainingParameters)
 	ŷ = model(x)
 
 	loss = sum(binarycrossentropy.(ŷ, y)) / (length(y))
-	# loss = sum(mae.(ŷ, y))
 	return loss #+ yP.wPenalty * sum(norm, params)
 end
 # TODO, the weigth decay results in NaN results, if present in the FIRST EPOCH (only if). Why?
@@ -70,12 +68,12 @@ end
 maxInputLength  = 100
 maxOutputLength = 100
 
-# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
-trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
+trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=6_samples=500000Samples.dat",
+# trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples=1000Samples.dat",
 # trainingSamples, evaluationSamples = loadSamples("Samples\\forward_n=6_samples=10000Samples.dat",
 	evaluationFraction = 0.025,
-	maxInputLength     = 10,
-	maxOutputLength    = 10,
+	maxInputLength     = 20,
+	maxOutputLength    = 20,
 	# dissallowedTokens = r"Csc|Sec|Sech|Csch"
 	# flattenTo          = (maxInputLength, maxOutputLength),
 	# expandInputTo      = maxInputLength,
@@ -83,10 +81,15 @@ trainingSamples, evaluationSamples = loadSamples("Samples\\backwards_n=4_samples
 	type               = Float32
 ) |> tpu
 
-# model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) |> tpu
+model = simpleEncoderDecoder(length(vocabulary), maxInputLength, maxOutputLength) |> tpu
 model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength, [512];
 	nEncoderIterations = 1, nDecoderIterations = 1,
 	encoderInterFFDimension = 128, decoderInterFFDimension = 512
+) |> tpu
+model = recursiveAttentionModel(length(vocabulary), maxInputLength, maxOutputLength;
+	nEncoderIterations = 3, nDecoderIterations = 3,
+	encoderInterFFDimension = 256, decoderInterFFDimension = 1024,
+	estimator = estimator
 ) |> tpu
 
 
