@@ -22,14 +22,16 @@ macro test(x)
 	extractFlaggedElements!(gpuElements,   gpuFlags,   structContent)
 	extractFlaggedElements!(trainElements, trainFlags, structContent)
 
-	function decorateWith!(elements, decoration)
+	function decorateWith(elements, decoration)
+		result = Expr[]
 		for i in 1:length(elements)
-			elements[i] = Symbol(decoration, ".", elements[i])
+			push!(result, :($decoration.$(elements[i])) )
 		end
+		return result
 	end
 
-	decorateWith!(gpuElements,   :x) # Later needed in the funtion definitions
-	decorateWith!(trainElements, :x) # Later needed in the funtion definitions
+	gpuElements   = decorateWith(gpuElements,   :x) # Later needed in the funtion definitions
+	trainElements = decorateWith(trainElements, :x) # Later needed in the funtion definitions
 
 	function removeTokens!(content, indexFlags)
 		for i in 1:length(indexFlags)
@@ -50,13 +52,17 @@ macro test(x)
 
 		function $(esc(:gpu))($(esc(:x))::$(esc(structName)) )
 			return tuple($(esc.(gpuElements)...))
-			return $(esc(gpuElements[1])), $(esc(gpuElements[2]))
-			return x.a, x.b # <- this is needed, at least in form
-			return $(esc(Symbol("xa")))
+		end
+
+		function $(esc(:cpu))($(esc(:x))::$(esc(structName)) )
+			return tuple($(esc.(gpuElements)...))
+		end
+
+		function $(esc(:(Flux.trainable)))($(esc(:x))::$(esc(structName)) )
+			return tuple($(esc.(trainElements)...))
 		end
 	end
 end
-
 
 
 
