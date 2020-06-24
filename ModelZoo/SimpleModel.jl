@@ -5,9 +5,9 @@ using Flux: unstack
 #
 # One Encoder Layer - One Decoder Layer
 
-mutable struct simpleEncoderDecoderCell{A, W, X, Y, Z}
+@FluxModel mutable struct simpleEncoderDecoderCell{A, W, X, Y, Z}
 	# Prediction layers
- 	encoderDecoderChain::A
+ 	encoderDecoderChain::A :gpu :trainable
 	# Metadata
 	vocabSize::W
 	inputLength::X
@@ -30,18 +30,18 @@ function simpleEncoderDecoder(vocabSize, inputLength, outputLength; contextSize 
 end
 
 # Parameters
-Flux.trainable(model::simpleEncoderDecoderCell) = model.encoderDecoderChain
-
-function gpu(model::simpleEncoderDecoderCell)
-	return simpleEncoderDecoderCell(Flux.gpu(model.encoderDecoderChain), model.vocabSize,
-		model.inputLength, model.contextSize, model.outputLength
-	)
-end
-function cpu(model::simpleEncoderDecoderCell)
-	return simpleEncoderDecoderCell(Flux.cpu(model.encoderDecoderChain), model.vocabSize,
-		model.inputLength, model.contextSize, model.outputLength
-	)
-end
+# Flux.trainable(model::simpleEncoderDecoderCell) = model.encoderDecoderChain
+#
+# function gpu(model::simpleEncoderDecoderCell)
+# 	return simpleEncoderDecoderCell(Flux.gpu(model.encoderDecoderChain), model.vocabSize,
+# 		model.inputLength, model.contextSize, model.outputLength
+# 	)
+# end
+# function cpu(model::simpleEncoderDecoderCell)
+# 	return simpleEncoderDecoderCell(Flux.cpu(model.encoderDecoderChain), model.vocabSize,
+# 		model.inputLength, model.contextSize, model.outputLength
+# 	)
+# end
 
 # Forward pass
 function (model::simpleEncoderDecoderCell)(x)

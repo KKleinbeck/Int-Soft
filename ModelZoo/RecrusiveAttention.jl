@@ -8,16 +8,16 @@ using Zygote: @adjoint
 # Idea: Implent Attention like in the Google paper. However use only one Matrix for the
 # attention and one for the feed worward layer and reuse them in multiple times!
 
-mutable struct recursiveAttentionCell{A, B, C, D, E, F}
+@FluxModel mutable struct recursiveAttentionCell{A, B, C, D, E, F}
 	# Prediction layers
- 	encoderLinearAttentionUnit::A
-	encoderTokenFeedForward::B
+ 	encoderLinearAttentionUnit::A :gpu :trainable
+	encoderTokenFeedForward::B :gpu :trainable
 
-	estimator::C
+	estimator::C :gpu :trainable
 
-	decoderLinearAttentionUnit::D
-	decoderExpressionFeedForward::E
-	decoderPredictor::F
+	decoderLinearAttentionUnit::D :gpu :trainable
+	decoderExpressionFeedForward::E :gpu :trainable
+	decoderPredictor::F :gpu :trainable
 
 	# Iteration Information
 	nEncodingIterations::Int
@@ -89,31 +89,31 @@ function recursiveAttentionModel(vocabSize::Int, inputLength::Int, outputLength:
 end
 
 # parameters
-Flux.trainable(model::recursiveAttentionCell) =
-	(model.encoderLinearAttentionUnit, model.encoderTokenFeedForward,
-	 model.decoderLinearAttentionUnit, model.decoderExpressionFeedForward,
-	 model.decoderPredictor, model.estimator)
-
-function gpu(model::recursiveAttentionCell)
-	return recursiveAttentionCell(
-		Flux.gpu(model.encoderLinearAttentionUnit), Flux.gpu(model.encoderTokenFeedForward),
-		Flux.gpu(model.estimator), Flux.gpu(model.decoderLinearAttentionUnit),
-		Flux.gpu(model.decoderExpressionFeedForward), Flux.gpu(model.decoderPredictor),
-		model.nEncodingIterations, model.encoderInterFFDimension,
-		model.nDecodingIterations, model.decoderInterFFDimension,
-		model.vocabSize, model.inputLength, model.outputLength
-	)
-end
-function cpu(model::recursiveAttentionCell)
-	return recursiveAttentionCell(
-		Flux.cpu(model.encoderLinearAttentionUnit), Flux.cpu(model.encoderTokenFeedForward),
-		Flux.cpu(model.estimator), Flux.cpu(model.decoderLinearAttentionUnit),
-		Flux.cpu(model.decoderExpressionFeedForward), Flux.cpu(model.decoderPredictor),
-		model.nEncodingIterations, model.encoderInterFFDimension,
-		model.nDecodingIterations, model.decoderInterFFDimension,
-		model.vocabSize, model.inputLength, model.outputLength
-	)
-end
+# Flux.trainable(model::recursiveAttentionCell) =
+# 	(model.encoderLinearAttentionUnit, model.encoderTokenFeedForward,
+# 	 model.decoderLinearAttentionUnit, model.decoderExpressionFeedForward,
+# 	 model.decoderPredictor, model.estimator)
+#
+# function gpu(model::recursiveAttentionCell)
+# 	return recursiveAttentionCell(
+# 		Flux.gpu(model.encoderLinearAttentionUnit), Flux.gpu(model.encoderTokenFeedForward),
+# 		Flux.gpu(model.estimator), Flux.gpu(model.decoderLinearAttentionUnit),
+# 		Flux.gpu(model.decoderExpressionFeedForward), Flux.gpu(model.decoderPredictor),
+# 		model.nEncodingIterations, model.encoderInterFFDimension,
+# 		model.nDecodingIterations, model.decoderInterFFDimension,
+# 		model.vocabSize, model.inputLength, model.outputLength
+# 	)
+# end
+# function cpu(model::recursiveAttentionCell)
+# 	return recursiveAttentionCell(
+# 		Flux.cpu(model.encoderLinearAttentionUnit), Flux.cpu(model.encoderTokenFeedForward),
+# 		Flux.cpu(model.estimator), Flux.cpu(model.decoderLinearAttentionUnit),
+# 		Flux.cpu(model.decoderExpressionFeedForward), Flux.cpu(model.decoderPredictor),
+# 		model.nEncodingIterations, model.encoderInterFFDimension,
+# 		model.nDecodingIterations, model.decoderInterFFDimension,
+# 		model.vocabSize, model.inputLength, model.outputLength
+# 	)
+# end
 
 function _attention(Q, KV) # Query, Kev Value
 	# Softmax along first dimension, so that multiplaction happens with a L¹-normalized vector

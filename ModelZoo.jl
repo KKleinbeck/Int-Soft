@@ -1,68 +1,10 @@
 import Flux: gpu, cpu
 
+include("ModelZoo/AutoStructures.jl")
 include("ModelZoo/SimpleModel.jl")
 include("ModelZoo/RecrusiveAttention.jl")
 
-macro test(x)
-	structName = x.args[2]
-	structContent = x.args[3].args[2:2:end]
-	gpuFlags = [:gpu ∈ line.args for line in structContent]
-	gpuElements = []
-	trainFlags = [:trainable ∈ line.args for line in structContent]
-	trainElements = []
 
-	function extractFlaggedElements!(flaggedElements, flags, content)
-		for i in 1:length(content)
-			if flags[i]
-				push!(flaggedElements, content[i].args[2].args[1])
-			end
-		end
-	end
-
-	extractFlaggedElements!(gpuElements,   gpuFlags,   structContent)
-	extractFlaggedElements!(trainElements, trainFlags, structContent)
-
-	function decorateWith(elements, decoration)
-		result = Expr[]
-		for i in 1:length(elements)
-			push!(result, :($decoration.$(elements[i])) )
-		end
-		return result
-	end
-
-	gpuElements   = decorateWith(gpuElements,   :x) # Later needed in the funtion definitions
-	trainElements = decorateWith(trainElements, :x) # Later needed in the funtion definitions
-
-	function removeTokens!(content, indexFlags)
-		for i in 1:length(indexFlags)
-			!indexFlags[i] && continue
-			content[i] = content[i].args[2]
-		end
-	end
-
-	removeTokens!(structContent, gpuFlags .| trainFlags)
-
-	x.args[3].args[2:2:end] .= structContent
-
-	println("-----------------------------------------")
-	println(gpuElements)
-	println("-----------------------------------------")
-	return quote
-		$x
-
-		function $(esc(:gpu))($(esc(:x))::$(esc(structName)) )
-			return tuple($(esc.(gpuElements)...))
-		end
-
-		function $(esc(:cpu))($(esc(:x))::$(esc(structName)) )
-			return tuple($(esc.(gpuElements)...))
-		end
-
-		function $(esc(:(Flux.trainable)))($(esc(:x))::$(esc(structName)) )
-			return tuple($(esc.(trainElements)...))
-		end
-	end
-end
 
 
 

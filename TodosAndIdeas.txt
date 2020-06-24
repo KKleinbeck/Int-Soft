@@ -1,10 +1,6 @@
 Properly benchmark recursive attention algorithm
   Precisely time how much time is spend in each subcall.
 
-Boilerplate code for the Models
-  Currently I have to give a trainable, gpu and pretty print function for every model I create.
-  This is bad design and a macro should handle this. Find a good way to create this macro.
-
 
 Memory efficient DataLoader:
   Flux's current data loader allocates space of the _same size as the training data_ upon
